@@ -39,25 +39,53 @@ own working directory, transcript and status, and the app watches all of them.
 The problem it exists to solve is attention. When twenty agents are working, what you
 need to know is not what each one is doing, it is **which ones are waiting on you**.
 
-- **A muster line** collects exactly the sessions that want you — blocked first, then
-  waiting, then finished-but-unseen, and inside each the longest wait first. Your own
-  session list never reorders itself.
-- **A count on the dock**, and a dock menu listing what wants you, so you know without
-  the app being on screen.
-- **Notifications you can aim**: per kind, muted per session, and always subject to Do
-  Not Disturb.
+- **The deck** groups every session by what it is doing, with what costs you most at the
+  top: blocked, then waiting on you, then ready for review, then working, then idle. Inside
+  each group the longest wait comes first, which is the one question scanning a session
+  list cannot answer.
+- **Blocked is separated from waiting**, because they are not the same cost. Blocked means
+  it cannot continue at all: a permission prompt, an errored turn, a turn cut off
+  mid-call, or red CI. Waiting means it stopped at a sensible boundary and asked you
+  something.
+- **Mark one as read** and it moves to idle until that conversation moves again, so the
+  list is something you can actually clear.
+- **A count on the dock**, and a dock menu listing what wants you, so you know without the
+  app being on screen. Working and idle sessions never count towards it.
+- **Notifications you can aim**: per kind, muted per session, and always subject to Do Not
+  Disturb.
 - **A 3D map** of every repository and session, so a glance tells you where attention is
   needed without reading anything.
 
 ## Updates
 
 MusterDeck checks this repository for new releases and can install them for you. The
-check is anonymous — no account and no `gh` CLI needed.
+check is anonymous: no account and no `gh` CLI needed.
 
 ## Themes
 
-The map's look is data, not code: one JSON file, re-read without a rebuild. Themes that
-do not ship in the app live in a separate repository.
+The map's look is data, not code: one JSON file, re-read without a rebuild. Two themes
+ship with the app (a space colony and a samurai village); themes that cannot ship,
+because of third-party IP or company branding, live in a separate repository.
+
+## Credits
+
+MusterDeck stands on two MIT-licensed projects, and it would not exist without either.
+Both are credited because the ideas were theirs first, and the work done since does not
+change that.
+
+- **Claude Command Center**, the multi-session workbench MusterDeck grew out of: the idea
+  that the Claude Code session is the thing worth making first-class, and the shape that
+  follows from it. A session per tab with its own identity, saved launchers, a status line
+  fed by Claude's own hook, per-account isolation, and the transcript index the history
+  and cost pages are built on.
+- **Bot Crossing** by Jarren Rocks ([botcrossing.com](https://botcrossing.com)), the 3D
+  engine behind the map. Its character rig, its instanced crew, its hex plot lattice and
+  its recipe-driven buildings are the reason that view exists at all.
+
+Claude Code and Codex are the tools MusterDeck orchestrates. Neither is bundled or
+modified, and this project is not affiliated with, endorsed by or sponsored by Anthropic
+or OpenAI. Claude and Claude Code are trademarks of Anthropic, PBC; OpenAI and Codex are
+trademarks of OpenAI.
 
 ## Reporting something
 
