@@ -5,17 +5,23 @@
   },
   "metadata": {
     "description": "Install and maintain MusterDeck, the multi-session terminal orchestrator for Claude Code and Codex",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "pluginRoot": "./plugins"
   },
   "plugins": [
     {
       "name": "musterdeck",
       "source": "./plugins/musterdeck",
-      "description": "Install the latest MusterDeck release on this machine, then add the custom Crew themes",
-      "version": "1.0.0",
+      "description": "Install and maintain MusterDeck, and author Crew themes for it",
+      "version": "1.0.1",
       "category": "productivity",
-      "keywords": ["musterdeck", "install", "electron", "claude-code", "sessions"]
+      "keywords": [
+        "musterdeck",
+        "install",
+        "electron",
+        "claude-code",
+        "sessions"
+      ]
     }
   ]
 }
