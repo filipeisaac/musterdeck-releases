@@ -5,16 +5,47 @@
 This repository holds the downloads. The source is private; nothing here but installers
 and release notes.
 
-## Download
+## Install
 
-Grab the latest installer from [**Releases**](../../releases/latest).
+### The plugin (recommended)
+
+MusterDeck installs itself through a Claude Code plugin. Nothing needs to be on the
+machine but Claude Code:
+
+```
+/plugin marketplace add filipeisaac/musterdeck-releases
+/plugin install musterdeck@musterdeck
+/install-musterdeck
+```
+
+`/install-musterdeck` works out your OS and architecture, downloads the right installer
+from the latest release, checks it against the published SHA-256, installs it, launches
+it, and offers to add the extra Crew themes. Run it again whenever you want to upgrade.
+
+The plugin also brings the rest of the skills with it:
+
+| Skill | What it does |
+|---|---|
+| `install-musterdeck` | Install or upgrade the app, as above |
+| `musterdeck-install-custom-theme` | Add the Crew themes that do not ship with the app |
+| `new-crew-theme` | Build a Crew theme of your own, end to end |
+
+### Downloading it yourself
+
+If you would rather not add a marketplace, take the installer straight from
+[**Releases**](../../releases/latest):
 
 | Platform | File |
 |---|---|
 | macOS (Apple Silicon) | `MusterDeck-<version>-mac.dmg` |
-| Windows (x64) | `MusterDeck-Setup-<version>.exe` |
+| Windows (x64) | `MusterDeck-<version>.exe` |
 
 Every release carries a `CHECKSUMS.txt` with SHA-256 sums for each asset.
+
+**You still get the skills.** The app installs the same three into `~/.claude/skills/` the
+first time it starts, so nothing is lost by skipping the plugin — you just install and
+upgrade the app by hand instead of with `/install-musterdeck`. They are the same files
+either way, and the app never overwrites one you have edited.
 
 ### macOS: the first launch
 
@@ -29,6 +60,13 @@ Double-clicking normally works from then on. If you prefer the terminal:
 ```bash
 xattr -dr com.apple.quarantine /Applications/MusterDeck.app
 ```
+
+(`/install-musterdeck` does this for you.)
+
+### Windows: the first launch
+
+The installer is not signed either, so SmartScreen may warn about an unrecognised
+publisher. Choose **More info**, then **Run anyway**.
 
 ## What it is
 
