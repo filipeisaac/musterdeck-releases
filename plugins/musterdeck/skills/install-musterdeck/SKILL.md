@@ -216,8 +216,8 @@ it replaces, and refuses a theme this app version is too old to load.
 
 Two things worth saying as you offer:
 
-- It needs the **GitHub CLI signed in** (`gh auth status`), because that repository is
-  private, unlike the releases one. An account without access gets a 404.
+- Nothing to sign in to: that repository is public too, so the theme skill reads it over
+  plain HTTP. Do not send anyone to `gh auth login` for this.
 - Themes are runtime data: adding one needs no rebuild and no restart, only **Reload
   themes** in the Crew's view menu.
 

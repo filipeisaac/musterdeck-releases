@@ -6,7 +6,7 @@ description: List and install MusterDeck Crew themes that do not ship with the a
 # Installing a custom Crew theme
 
 MusterDeck ships with two Crew themes (Harbour and the Samurai Village). Others are
-distributed separately, from the private repository **`filipeisaac/musterdeck-themes`**,
+distributed separately, from **`filipeisaac/musterdeck-themes`**,
 because they carry someone else's IP or branding. A theme is one JSON file; installing it
 means putting it at `<data dir>/themes/<id>/theme.json` and reloading themes in the Crew.
 No rebuild, no restart.
@@ -45,20 +45,19 @@ If you cannot find it, say so and carry on; you will warn instead of blocking in
 
 ## 3. What the repository offers
 
-The repository is private. Read its index with the GitHub CLI:
+The repository is public, so read the index over plain HTTP. **Do not require the GitHub
+CLI here** -- no sign-in is needed, and asking for one turns a working machine away:
 
 ```bash
-gh api repos/filipeisaac/musterdeck-themes/contents/themes/index.json \
-  -H "Accept: application/vnd.github.raw"
+curl -fsSL https://raw.githubusercontent.com/filipeisaac/musterdeck-themes/main/themes/index.json
 ```
 
 Each row is `{ id, name, blurb, file, sha256, minApp, crew, why }`.
 
-If this fails, tell the user plainly which of these it is, and stop:
-
-- `gh` is not installed or not signed in: suggest `! gh auth login`.
-- A 404 while signed in: their account has no access to the private repository. Access is
-  granted by its owner; there is nothing to fix on this machine.
+If this fails, say which it is and stop: no network, or the URL 404s because the
+repository or its default branch moved. Neither is something to work around by guessing at
+a theme file directly -- the index is what carries the checksum you are about to verify
+against, so without it there is nothing to trust a download by.
 
 ## 4. Show the options
 
@@ -87,8 +86,8 @@ For each theme picked:
    will not appear until MusterDeck is updated.
 2. Download it:
    ```bash
-   gh api repos/filipeisaac/musterdeck-themes/contents/<file> \
-     -H "Accept: application/vnd.github.raw" > /tmp/<id>.theme.json
+   curl -fsSL "https://raw.githubusercontent.com/filipeisaac/musterdeck-themes/main/<file>" \
+     -o "<scratch>/<id>.theme.json"
    ```
 3. Check it before it goes anywhere: its SHA-256 equals the index's `sha256`, it parses as
    JSON, and its `"id"` equals the index's `id`. If any check fails, install nothing for

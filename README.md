@@ -102,8 +102,14 @@ check is anonymous: no account and no `gh` CLI needed.
 ## Themes
 
 The map's look is data, not code: one JSON file, re-read without a rebuild. Two themes
-ship with the app (a space colony and a samurai village); themes that cannot ship,
-because of third-party IP or company branding, live in a separate repository.
+ship with the app: a space colony and a samurai village.
+
+A few more cannot ship inside it, because of third-party IP or company branding, so they
+live on a side shelf at
+[**filipeisaac/musterdeck-themes**](https://github.com/filipeisaac/musterdeck-themes) —
+optional, opt-in, and no part of the app. If you have the plugin, add one with
+`/musterdeck-install-custom-theme`; it checks each download against a published SHA-256
+and tells you if your app is too old for a theme.
 
 ## Credits
 
