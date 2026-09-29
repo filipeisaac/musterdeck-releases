@@ -27,7 +27,7 @@ the rail) has a **Themes** block with three rows:
 
 | Row | What it does |
 | --- | --- |
-| **New theme…** | Asks for an id, writes a working starter `theme.json`, opens the folder, and registers it so it is in the Theme picker immediately. |
+| **New theme…** | Asks for an id, writes a working starter `theme.json`, registers it so it is in the Theme picker immediately, and opens a new session in the theme's folder running `/new-crew-theme <id>` (the `new-crew-theme` skill, which ships with the app), which builds the theme with you. |
 | **Themes folder** | Opens the folder in Finder or Explorer. |
 | **Reload themes** | Re-reads the folder and re-registers everything in it, without leaving the view. |
 
@@ -71,6 +71,7 @@ value rather than failing.
 | `worlds` | **Worlds of your own**, keyed by id. Ground, rock, horizon, sky, fog, sun, ambient, atmosphere, craters, roughness, scatter, companion, dust. See below. |
 | `scatters` | **Planting lists of your own**, by the name a world's `scatter` refers to. |
 | `status` | The words on the status pills. The eight KEYS are the status vocabulary and are not yours to change; the strings are. |
+| `ranks` | What the legend calls each rank, lowest first: exactly three names, for Sonnet and Haiku, then Opus, then Fable (since MusterDeck 1.0.11). Which model wears which rank is not yours to change; the names are. Leave it out and the ranks are Soldier, Major and General. See **Tiers** below. |
 | `plotPalette` | One accent per zone, picked by hashing the repo name. **Order matters**: a zone's accent is `palette[hash(name) % length]`. |
 | `crew.look.<state>` | `trim` and `eye` per state, for **`idle`, `sleeping` and `leaving` only**. `working`, `waiting`, `blocked`, `celebrating` and `spawning` are the app's own `--status-*` colours and a theme's values for them are ignored: a status means the same thing in every world, and the same trim paints the building's work-site cord. Keep at least one eye channel above 1.0 or the bloom pass stops catching it and the glow dies at night. |
 | `crew.suitTones` | Fallback suit colours, by id hash, when effort is unknown. |
@@ -266,6 +267,14 @@ The kit list is **replaced**, not merged. A theme naming only its own kit gets o
 rather than silently inheriting a space station it never asked for.
 
 A theme with `"kits": {}` is legal and builds entirely from primitives.
+
+A kit path is relative to the theme's folder and must stay inside it (`../` is refused, by
+the app and by the publisher). To go on the theme shelf it must also be a `.glb` whose path
+uses only letters, digits, `.`, `_`, `-` and `/`. A theme with its own kits can be published
+like any other: `tools/crew-sheet/publish-themes.py` publishes it to
+`filipeisaac/musterdeck-themes` as the same folder, `theme.json` plus exactly the `.glb`
+files `world.kits` names, each with its SHA-256, and the `musterdeck-install-custom-theme`
+skill installs that folder whole.
 
 ### Shapes
 
@@ -606,8 +615,17 @@ indistinguishable from a solver.
 
 ### Tiers
 
-`wear` has one entry per model rank: 0 is everything else, 1 is Opus, 2 is Fable. Tier 1
-is the one you will see most, so it is the shape the eye calibrates on; tier 0 should read
+`wear` has one entry per model rank: 0 is everything else, 1 is Opus, 2 is Fable. Name
+the three in `ranks`, lowest first, so the legend says what your kit dresses them as:
+
+```json
+"ranks": ["Watchhand", "Signal mate", "Harbour master"]
+```
+
+That is Harbour Signals'; the Samurai Village says `["Ashigaru", "Samurai", "Daimyo"]`.
+Anything but three non-empty strings is refused with the rest of the theme. An app older
+than 1.0.11 ignores the key and shows the default names, so it does not raise a theme's
+`minApp`. Tier 1 is the one you will see most, so it is the shape the eye calibrates on; tier 0 should read
 as conspicuously stripped down from it and tier 2 as unmistakably loaded above it.
 
 | Entry | Means |

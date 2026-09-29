@@ -315,6 +315,21 @@ install.
    `skills/new-crew-theme/references/descriptor-keys.md`**, bump `package.json`, commit
    (`feat(crew): ... (0.2.NN)`), and say in the message what the theme is and what failed
    on the way.
+   **Or on the theme shelf** (opt-in, installed with `musterdeck-install-custom-theme`,
+   needs a checkout): save the descriptor as `themes/unshipped/<id>.json` (file name = id),
+   or, when its `world.kits` names a `.glb` of its own (not `builtin:`), as the folder
+   `themes/unshipped/<id>/theme.json` with those kits beside it, at the paths the
+   descriptor names. Give it a row in `tools/crew-sheet/publish-themes.py`'s `META`
+   (`minApp`, a one-line `crew`, and `why` it is not in the app; the script refuses a theme
+   with no row), then run
+   `python3 tools/crew-sheet/publish-themes.py <path to a clone of filipeisaac/musterdeck-themes>`.
+   It writes each theme as the folder the app reads, `themes/<id>/theme.json` plus exactly
+   the `.glb` kits its `world.kits` names (a kit path that leaves the folder, is missing, or
+   is not a `.glb` is refused), then `themes/index.json` (every file with its sha256 and
+   size, plus the total) and `THEME-REFERENCE.md`, into that clone and nothing else: review
+   the diff there, then commit and push it. **Raise `minApp` whenever the theme starts
+   using something the engine gained**: an older app refuses a theme it cannot validate.
+   Keep kits small: every install downloads them, and the app refuses any asset over 64 MB.
 3. **Make each generator's DEFAULT output the thing that shipped**, or a plain re-run
    months later reverts it.
 4. **If the engine changed** (a new attach bone, a new primitive, a key the evaluator now
@@ -358,7 +373,9 @@ install.
       (updating the existing one), link handed over.
 - [ ] **Approved**, before anything below.
 - [ ] `theme.json` is where the user can drop it in; if shipped, it is in `index.json`,
-      documented, versioned, committed, and each generator's default reproduces it.
+      documented, versioned, committed, and each generator's default reproduces it; if
+      published to the shelf, its `META` row and `minApp` are right and the shelf's
+      `index.json` lists every file of it (descriptor and kits) with its sha256.
 
 ## Reference
 
