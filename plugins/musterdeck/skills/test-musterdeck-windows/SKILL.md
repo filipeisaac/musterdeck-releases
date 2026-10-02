@@ -211,17 +211,24 @@ Their own Claude Code setup is not touched, except files MusterDeck itself creat
    `HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*` (or `HKLM:` for a
    machine-wide install) and run its `UninstallString` with `/S`.
 3. MusterDeck's data: `$dataDir` (its sessions, configs, logs, account profiles),
-   `%LOCALAPPDATA%\MusterDeck` (a dev build's data, if any), and Electron's own folder
-   `%APPDATA%\musterdeck`.
+   `%LOCALAPPDATA%\MusterDeck` (a dev build's data, if any), Electron's own folder
+   `%APPDATA%\musterdeck`, and the updater's download cache
+   `%LOCALAPPDATA%\musterdeck-updater` (it can hold hundreds of MB of installers).
 4. Its registry keys: `HKCU\Software\Claude Command Center` and the older
    `HKCU\Software\Claude Conductor`.
-5. Files it wrote into the Windows Claude folder: `%USERPROFILE%\.claude\settings-*.json`
-   and `%USERPROFILE%\.claude\mcp-*.json` (per-session copies; Claude itself never names
-   files that way), and the skill folders under `%USERPROFILE%\.claude\skills\` that carry
-   a `.ccc-bundled` file (installed by MusterDeck; a folder without it is the person's own
-   and stays).
-6. The same in Ubuntu: `~/.claude/settings-*.json`, `~/.claude/mcp-*.json`,
-   `~/.claude/launch-*.sh`, `~/.claude/conductor-ssh-statusline.js`, `~/.musterdeck`.
+5. Files it wrote into the Windows Claude folder, **matched by content, not only by name**
+   (Claude Code keeps files with the same kind of names there, e.g. its own
+   `mcp-needs-auth-cache.json`, which must stay):
+   - `%USERPROFILE%\.claude\mcp-*.json` whose whole content is `{ "mcpServers": {...} }`
+     (nothing else at the top level);
+   - `%USERPROFILE%\.claude\settings-*.json` that contain MusterDeck's hook URL
+     (`/hook/` on `localhost` or `127.0.0.1`);
+   - the skill folders under `%USERPROFILE%\.claude\skills\` that carry a `.ccc-bundled`
+     file (installed by MusterDeck; a folder without it is the person's own and stays).
+   List any `mcp-*.json` or `settings-*.json` that did NOT match, and leave them.
+6. The same in Ubuntu, by the same content rules: `~/.claude/settings-*.json`,
+   `~/.claude/mcp-*.json`, plus `~/.claude/launch-*.sh`,
+   `~/.claude/conductor-ssh-statusline.js` and `~/.musterdeck`.
 7. The installer it downloaded: `MusterDeck-*.exe` in Downloads.
 8. If `%USERPROFILE%\.wslconfig` has a `.musterdeck-*.bak` beside it, MusterDeck changed
    it: show both and ask before restoring the backup.
