@@ -28,6 +28,9 @@ export const CHECKS = [
   { id: 'primary', script: 'primary.mjs', phase: 'P8', wsl: true },
   { id: 'primary-project', script: 'primary.mjs', phase: 'P8', wsl: true, extra: ['--project', '{project}'], when: 'project' },
   { id: 'accounts', script: 'accounts.mjs', phase: 'P8', wsl: true },
+  // After the read-only checks: it clicks through the pages (and back to Chat), so the
+  // ones above see the window as the drivers left it.
+  { id: 'pages', script: 'pages.mjs', phase: 'P9', wsl: false },
   { id: 'codex-run', script: 'codex.mjs', phase: 'P7', wsl: true, extra: ['--run'], when: 'codexRun', timeoutMs: 240_000 },
   { id: 'insights-run', script: 'insights.mjs', phase: 'P4', wsl: false, extra: ['--run', '--environment', '{environment}'], when: 'insightsRun', timeoutMs: 20 * 60_000 },
 ]

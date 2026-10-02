@@ -15,12 +15,18 @@
  *   drop       what dropping `--drop` on it would type (the drop handler, dry run)
  *   rename     Rename from the sidebar menu: the label changes
  *   split      Split right from the tab menu, both terminals still alive, then Merge panes
- *   archive    Archive from the tab menu, Restore from the sidebar: the same session, a live shell
+ *   archive    Archive from the tab menu (that session's own menu), Restore from that session's
+ *              row in the sidebar's Archived Sessions: the same session, a live shell
+ *   archive-card  the sidebar card's button archives (1.0.106): only that session goes, it is
+ *              listed under Archived Sessions, and its row restores it (SKIP on an older build)
+ *   close      Close Session from the sidebar menu takes two clicks, and closes (not archives)
+ *   close-all  Close All on a two-session selection asks first: Cancel keeps both, OK closes both
  *   With `--claude` (spends a few cheap turns on the account):
  *   claude     a Claude session with a Partner Terminal, ready (a folder trust question, if
- *              Claude asks one, is answered Yes)
+ *              Claude asks one, is answered with its "Yes" option, found on screen and moved to
+ *              with the arrow keys; never a bare Enter, since some versions list "No, exit" first)
  *   turn       one prompt with a marker word: Working is seen on the deck, then it settles,
- *              and the reply is the marker
+ *              and the reply is the marker, read AFTER the prompt on screen
  *   scheduled  "Schedule a message..." from the tab menu, due now: a `/rename` (a local command,
  *              no tokens) is typed in, and the label follows it
  *   partner    the Partner Terminal opens in the session's folder (`pwd`)
@@ -33,7 +39,8 @@
  *
  * Phase `resume`, after the app was quit (quit-app.mjs) and started again with the same data
  * folder: the sessions are back with their labels, and the Claude session continues the SAME
- * conversation: its id is unchanged and, asked, it answers the marker again.
+ * conversation: its id is unchanged and, asked, it answers the marker again (a reply after
+ * that question on screen, not the replayed one from before the relaunch).
  *
  * Every step records PASS, FAIL or SKIP with evidence lines (lib/results.mjs). Exit 1 when
  * any step failed.
@@ -43,10 +50,11 @@ import path from 'node:path'
 import { connectToApp, callTestApi, portFromArgs } from './lib/cdp.mjs'
 import { outDirFromArgs, step, record, failWith } from './lib/results.mjs'
 import {
-  click, contextMenu, setValue, pressKey, setChecked, exists, sleep, waitFor,
-  terminalText, typeInTerminal, waitForTerminal, screenshot,
+  click, contextMenu, setValue, pressKey, setChecked, exists, rectOf, sleep, waitFor,
+  terminalText, typeInTerminal, pressTerminalKey, waitForTerminal, screenshot,
 } from './lib/ui.mjs'
 import { decodePng, countNear } from './lib/png.mjs'
+import { TRUST, selectPrompt, describeOptions, countAnswers, answersAfterPrompt } from './lib/claude-tui.mjs'
 
 const argv = process.argv.slice(2)
 const arg = (name, dflt = null) => (argv.includes(name) ? argv[argv.indexOf(name) + 1] : dflt)
@@ -144,25 +152,42 @@ async function createSession({ label, shellOnly, partner }) {
 }
 
 const CLAUDE_READY = /\? for shortcuts|bypass permissions|accept edits|plan mode on|Try "|─{20,}[\s\S]{0,8}>/
-const TRUST = /Do you trust the files|trust this folder|Yes, proceed|Is this a project you/i
+
+/**
+ * Answer Claude's folder trust question with its "Yes" option, wherever that option is. Never
+ * a blind Enter: Claude Code 2.1.287 lists "No, exit" first and selected, so Enter quit
+ * Claude. Reads the options off the screen, moves the cursor onto Yes with the arrow keys,
+ * checks the cursor is there, and only then presses Enter. Answers the options as seen.
+ */
+async function answerTrust(ptyId) {
+  for (let i = 0; i < 8; i++) {
+    const sp = selectPrompt(await terminalText(page, ptyId, 60))
+    if (!sp) throw new Error('the trust question shows no numbered options yet')
+    if (!sp.yes) throw new Error(`the trust question has no Yes option (${describeOptions(sp)})`)
+    if (!sp.selected) throw new Error(`cannot tell which trust option is selected (${describeOptions(sp)})`)
+    if (sp.selected.n === sp.yes.n) {
+      await typeInTerminal(page, ptyId, '', { enter: true })
+      return sp
+    }
+    await pressTerminalKey(page, ptyId, sp.yes.n > sp.selected.n ? 'ArrowDown' : 'ArrowUp')
+    await sleep(400)
+  }
+  throw new Error('the cursor would not move onto the Yes option of the trust question')
+}
 
 /** Wait for Claude's prompt in a terminal; answers a folder trust question Yes if one shows. */
 async function waitClaudeReady(ptyId) {
-  let trusted = false
+  let trusted = null
   return waitFor(async () => {
     const t = await terminalText(page, ptyId)
-    if (!trusted && TRUST.test(t) && !CLAUDE_READY.test(t)) {
-      trusted = true
-      await typeInTerminal(page, ptyId, '', { enter: true })
+    const tail = t.split(/\r?\n/).slice(-40).join('\n')
+    if (!trusted && TRUST.test(tail) && !CLAUDE_READY.test(tail)) {
+      trusted = await answerTrust(ptyId)
       return null
     }
     return CLAUDE_READY.test(t) ? { text: t, trusted } : null
   }, { timeoutMs, intervalMs: 1000, what: `Claude's prompt in ${ptyId}` })
 }
-
-/** A line that is the marker alone (Claude's reply), possibly behind its bullet. */
-const answerRe = (marker) => new RegExp(`^[^A-Za-z0-9]{0,4}${marker}[.!]?\\s*$`, 'gm')
-const countAnswers = (text, marker) => (text.match(answerRe(marker)) ?? []).length
 
 /** The conversation a Claude session is on: the reading's uuid, else its resume pointer. */
 async function conversationOf(id) {
@@ -170,17 +195,20 @@ async function conversationOf(id) {
   return tk?.open?.find((o) => o.id === id)?.uuid ?? (await sessionById(id))?.resumeUuid ?? null
 }
 
-/** Type a prompt and watch the deck until the turn is over. Answers the statuses seen. */
+/**
+ * Type a prompt and watch the deck until the turn is over. Answers the statuses seen. The
+ * reply must come AFTER this prompt on screen (`answersAfterPrompt`): a resumed session
+ * replays the earlier replies too, and a counter taken before typing raced that replay.
+ */
 async function turn(id, prompt, marker) {
-  const before = countAnswers(await terminalText(page, id), marker)
   await typeInTerminal(page, id, prompt)
   const seen = []
   await waitFor(async () => {
     const st = (await callTestApi(page, 'readings'))?.status?.[id] ?? 'none'
     if (seen[seen.length - 1] !== st) seen.push(st)
-    const n = countAnswers(await terminalText(page, id), marker)
-    return n > before && st !== 'working' && st !== 'spawning' ? true : null
-  }, { timeoutMs, intervalMs: 400, what: `the reply ${marker} and the turn to settle` })
+    const n = answersAfterPrompt(await terminalText(page, id), prompt, marker)
+    return n > 0 && st !== 'working' && st !== 'spawning' ? true : null
+  }, { timeoutMs, intervalMs: 400, what: `the reply ${marker} after the prompt, and the turn to settle` })
   return seen
 }
 
@@ -196,18 +224,82 @@ async function renameViaSidebar(id, label) {
   return waitFor(async () => (await sessionById(id))?.label === label, { timeoutMs: 10_000, what: `the label ${label}` })
 }
 
-/** Archive from the tab menu, then Restore from the sidebar's Archived Sessions. Answers the record. */
-async function archiveAndRestore(id) {
-  await activate(id)
+/**
+ * Open a session's TAB menu and click one of its items. Scoped to that menu: since 1.0.106
+ * "Archive session" is also the sidebar card's button and the session header's, and a
+ * page-wide match archived whichever session came first. The tab menu is the one whose
+ * items include "Hide session tab", which no other menu has.
+ */
+async function tabMenuItem(id, item) {
   await contextMenu(page, { css: `[data-session-id="${id}"]` })
-  await click(page, { text: 'Archive session', exact: true })
-  await waitFor(async () => !(await sessionById(id)), { timeoutMs: 20_000, what: 'the session to leave Active Sessions' })
+  await waitFor(() => page.evaluate(`(() => {
+    const norm = (s) => String(s == null ? '' : s).replace(/\\s+/g, ' ').trim()
+    const menus = Array.from(document.querySelectorAll('button')).filter((b) => norm(b.textContent) === 'Hide session tab').map((b) => b.parentElement)
+    for (const m of menus) {
+      const el = Array.from(m.querySelectorAll(':scope > button')).find((b) => norm(b.textContent) === ${JSON.stringify(item)})
+      if (el) { el.click(); return true }
+    }
+    return false
+  })()`), { timeoutMs: 10_000, intervalMs: 250, what: `"${item}" in the tab menu of ${id}` })
+}
+
+/** Open the sidebar's Archived Sessions list (it may be collapsed). */
+async function openArchived() {
   await toChat()
-  if (!(await exists(page, { text: 'Restore', exact: true }))) await click(page, { text: 'Archived Sessions', startsWith: true })
-  await click(page, { text: 'Restore', exact: true }, { timeoutMs: 15_000 })
+  await waitFor(() => page.evaluate(`(() => {
+    const b = Array.from(document.querySelectorAll('aside button')).find((x) => /^Archived Sessions/i.test(x.textContent.replace(/\\s+/g, ' ').trim()))
+    if (!b) return false
+    if (b.getAttribute('aria-expanded') === 'false') b.click()
+    return true
+  })()`), { timeoutMs: 15_000, intervalMs: 250, what: 'the Archived Sessions list' })
+  await sleep(400)
+}
+
+/** The titles of the rows in Archived Sessions (each is the session's label when archived). */
+async function archivedTitles() {
+  await openArchived()
+  return page.evaluate(`(() => {
+    const norm = (s) => String(s == null ? '' : s).replace(/\\s+/g, ' ').trim()
+    return Array.from(document.querySelectorAll('aside button')).filter((b) => norm(b.textContent) === 'Restore')
+      .map((b) => { const t = b.parentElement.querySelector(':scope > div > div'); return norm(t ? t.textContent : b.parentElement.textContent) })
+  })()`)
+}
+
+/** Click Restore on THIS session's row in Archived Sessions (by its label), not the first row. */
+async function restoreArchived(label) {
+  await openArchived()
+  await waitFor(() => page.evaluate(`(() => {
+    const norm = (s) => String(s == null ? '' : s).replace(/\\s+/g, ' ').trim()
+    const want = ${JSON.stringify(label)}
+    const rows = Array.from(document.querySelectorAll('aside button')).filter((b) => norm(b.textContent) === 'Restore').map((b) => b.parentElement)
+    const row = rows.find((r) => { const t = r.querySelector(':scope > div > div'); return t ? norm(t.textContent) === want : norm(r.textContent).startsWith(want) })
+    if (!row) return false
+    Array.from(row.querySelectorAll('button')).find((b) => norm(b.textContent) === 'Restore').click()
+    return true
+  })()`), { timeoutMs: 15_000, intervalMs: 500, what: `the archived row "${label}"` })
+}
+
+/** Restore a session by its row and wait for it to be back with its id. Answers the record. */
+async function restoreAndWait(id, label) {
+  const titles = await archivedTitles()
+  if (!titles.includes(label)) throw failWith(`"${label}" is not in Archived Sessions`, [`rows: ${titles.join('; ') || '(none)'}`])
+  await restoreArchived(label)
   const back = await waitFor(() => sessionById(id), { timeoutMs: 20_000, what: 'the session to come back with its id' })
   await activate(id)
   return back
+}
+
+/** Archive from the tab menu, then Restore from the sidebar's Archived Sessions. Answers the record. */
+async function archiveAndRestore(id) {
+  await activate(id)
+  const label = (await sessionById(id))?.label
+  const others = (await sessions()).filter((s) => s.id !== id).map((s) => s.id)
+  await tabMenuItem(id, 'Archive session')
+  await waitFor(async () => !(await sessionById(id)), { timeoutMs: 20_000, what: 'the session to leave Active Sessions' })
+  const all = (await sessions()).map((s) => s.id)
+  const lost = others.filter((o) => !all.includes(o))
+  if (lost.length) throw failWith('archiving one session took another with it', [`gone too: ${lost.join(', ')}`])
+  return restoreAndWait(id, label)
 }
 
 /** A shell command that prints `text` on a line of its own. */
@@ -298,8 +390,7 @@ if (phase === 'main') {
 
     await run('split', 'Split right, both terminals live, then merge', async () => {
       await activate(shell.id)
-      await contextMenu(page, { css: `[data-session-id="${shell.id}"]` })
-      await click(page, { text: 'Split right', exact: true })
+      await tabMenuItem(shell.id, 'Split right')
       const lay = await waitFor(async () => { const l = await callTestApi(page, 'layout'); return l?.splitEnabled ? l : null }, { timeoutMs: 10_000, what: 'split panes' })
       const pane = lay.paneOf?.[shell.id] ?? null
       const terms = await callTestApi(page, 'terminals')
@@ -318,6 +409,80 @@ if (phase === 'main') {
       await waitForTerminal(page, shell.id, new RegExp(`^md-suite-back-${stamp}\\s*$`, 'm'), { timeoutMs: 30_000 })
       return { evidence: [`restored ${back.id} "${back.label}", its shell answers again`] }
     })
+
+    await run('archive-card', "The sidebar card's button archives (not closes), and Restore brings it back", async () => {
+      await toChat()
+      const sel = `[data-session-archive="${shell.id}"]`
+      if (!(await exists(page, { css: sel, visible: false }))) return { status: 'SKIP', evidence: ['no archive button on the sidebar card (a build before 1.0.106)'] }
+      const label = (await sessionById(shell.id)).label
+      const others = (await sessions()).filter((s) => s.id !== shell.id).map((s) => s.id)
+      // Hover the row and click the button where it is drawn, as a person would.
+      const box = await rectOf(page, { css: sel, visible: false })
+      const x = box.x + box.width / 2, y = box.y + box.height / 2
+      await page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y })
+      await sleep(300)
+      await page.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 })
+      await page.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 })
+      await waitFor(async () => !(await sessionById(shell.id)), { timeoutMs: 20_000, what: 'the session to leave Active Sessions' })
+      const all = (await sessions()).map((s) => s.id)
+      if (others.some((o) => !all.includes(o))) throw failWith('the card button took another session with it', [`gone: ${others.filter((o) => !all.includes(o)).join(', ')}`])
+      // Archived, not closed: it is listed under Archived Sessions, which a close never does.
+      const back = await restoreAndWait(shell.id, label)
+      await waitFor(async () => (await terminalText(page, shell.id)).trim().length > 0, { timeoutMs: 60_000, what: 'a prompt in the restored shell' })
+      return { evidence: [`the card button archived ${shell.id} "${label}" and only it`, `listed under Archived Sessions and restored from its own row: ${back.id}`] }
+    })
+
+    await run('close', 'Close Session from the sidebar menu asks first (two clicks)', async () => {
+      const s = await createSession({ label: `md-suite ${place} close ${stamp}`, shellOnly: true })
+      await toChat()
+      await contextMenu(page, { css: `[data-session-row="${s.id}"]`, last: true })
+      await click(page, { text: 'Close Session', exact: true })
+      await sleep(500)
+      const stillOpen = !!(await sessionById(s.id))
+      const armed = await exists(page, { text: 'Close? Click again', exact: true })
+      if (!stillOpen) throw failWith('one click closed it, with no second step', [`session ${s.id}`])
+      if (!armed) throw failWith('the first click did not arm the close', [`session ${s.id} is still open, but the menu does not say "Close? Click again"`])
+      await click(page, { text: 'Close? Click again', exact: true })
+      await waitFor(async () => !(await sessionById(s.id)), { timeoutMs: 10_000, what: 'the session to close' })
+      const archived = await archivedTitles().catch(() => [])
+      if (archived.includes(s.label)) throw failWith('the closed session was archived instead', [`"${s.label}" is under Archived Sessions`])
+      return { evidence: [`first click: still open, the item reads "Close? Click again"`, `second click: ${s.id} closed (not archived)`] }
+    })
+
+    await run('close-all', 'Close All on a selection asks first: Cancel keeps them, OK closes them', async () => {
+      const a = await createSession({ label: `md-suite ${place} bulk-a ${stamp}`, shellOnly: true })
+      const b = await createSession({ label: `md-suite ${place} bulk-b ${stamp}`, shellOnly: true })
+      await toChat()
+      if (await exists(page, { within: 'aside', text: 'Clear', exact: true })) await click(page, { within: 'aside', text: 'Clear', exact: true })
+      // The confirm is the browser's own dialog, which CDP cannot click in Electron: answer it
+      // in the page, record what it asked, and put the real one back afterwards.
+      await page.evaluate(`(() => { window.__mdConfirm = { asked: [], answer: false, orig: window.__mdConfirm?.orig ?? window.confirm }; window.confirm = (m) => { window.__mdConfirm.asked.push(String(m)); return window.__mdConfirm.answer } })()`)
+      const mod = platform === 'darwin' ? 'metaKey' : 'ctrlKey'
+      const select = async () => {
+        for (const id of [a.id, b.id]) {
+          await page.evaluate(`document.querySelector('button[data-session-row="${id}"]').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, ${mod}: true }))`)
+          await sleep(200)
+        }
+      }
+      try {
+        await select()
+        await click(page, { within: 'aside', text: 'Close All', exact: true })
+        await sleep(500)
+        const keptOnCancel = !!(await sessionById(a.id)) && !!(await sessionById(b.id))
+        await page.evaluate('window.__mdConfirm.answer = true')
+        if (!(await exists(page, { within: 'aside', text: 'Close All', exact: true }))) await select()
+        await click(page, { within: 'aside', text: 'Close All', exact: true })
+        await waitFor(async () => !(await sessionById(a.id)) && !(await sessionById(b.id)), { timeoutMs: 10_000, what: 'both sessions to close' })
+        const asked = await page.evaluate('window.__mdConfirm.asked')
+        const evidence = [`asked: ${JSON.stringify(asked[0] ?? null)}`, `after Cancel both still open: ${keptOnCancel}`, `after OK both closed`]
+        if (!asked.length) throw failWith('Close All closed them without asking', evidence)
+        if (!keptOnCancel) throw failWith('Cancel did not keep them', evidence)
+        if (!/\b2\b/.test(asked[0])) throw failWith('the question does not say how many sessions', evidence)
+        return { evidence }
+      } finally {
+        await page.evaluate('(() => { if (window.__mdConfirm?.orig) window.confirm = window.__mdConfirm.orig })()').catch(() => {})
+      }
+    })
   }
 
   // ---- the Claude session --------------------------------------------------------------
@@ -331,7 +496,7 @@ if (phase === 'main') {
       saveState()
       await activate(claude.id)
       const r = await waitClaudeReady(claude.id)
-      return { evidence: [`session ${claude.id} host ${claude.host}${claude.environmentId ? ` ${claude.environmentId}` : ''}`, r.trusted ? 'answered the folder trust question Yes' : 'no trust question'] }
+      return { evidence: [`session ${claude.id} host ${claude.host}${claude.environmentId ? ` ${claude.environmentId}` : ''}`, r.trusted ? `answered the folder trust question with ${r.trusted.yes.n}. ${r.trusted.yes.text} (options: ${describeOptions(r.trusted)})` : 'no trust question'] }
     })
 
     if (claude) {
@@ -350,8 +515,7 @@ if (phase === 'main') {
         // which the app reads straight from the terminal into the session's label.
         await activate(claude.id)
         const name = `md-suite-sched-${stamp}`
-        await contextMenu(page, { css: `[data-session-id="${claude.id}"]` })
-        await click(page, { text: 'Schedule a message…', exact: true })
+        await tabMenuItem(claude.id, 'Schedule a message…')
         await setValue(page, { css: 'input[maxlength]' }, `/rename ${name}`)
         const d = new Date()
         const p2 = (n) => String(n).padStart(2, '0')

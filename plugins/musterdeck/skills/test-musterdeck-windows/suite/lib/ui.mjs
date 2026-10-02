@@ -163,6 +163,26 @@ export async function typeInTerminal(page, ptyId, text, { enter = true } = {}) {
   return 'keyboard'
 }
 
+const KEYS = {
+  ArrowUp: { code: 'ArrowUp', vk: 38 },
+  ArrowDown: { code: 'ArrowDown', vk: 40 },
+  Escape: { code: 'Escape', vk: 27 },
+}
+
+/**
+ * Press one named key (ArrowUp, ArrowDown, Escape) in a terminal, as a keyboard would: a real
+ * keydown that xterm turns into the bytes the program expects (it knows the cursor-key mode).
+ */
+export async function pressTerminalKey(page, ptyId, key) {
+  const k = KEYS[key]
+  if (!k) throw new Error(`pressTerminalKey: no key ${key}`)
+  const sel = JSON.stringify(`[data-terminal-id="${ptyId}"] textarea`)
+  const focused = await page.evaluate(`(() => { const t = document.querySelector(${sel}); if (!t) return false; t.focus(); return document.activeElement === t })()`)
+  if (!focused) throw new Error(`no terminal input for ${ptyId} (is its tab showing?)`)
+  await page.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key, code: k.code, windowsVirtualKeyCode: k.vk, nativeVirtualKeyCode: k.vk })
+  await page.send('Input.dispatchKeyEvent', { type: 'keyUp', key, code: k.code, windowsVirtualKeyCode: k.vk, nativeVirtualKeyCode: k.vk })
+}
+
 /** Wait until a terminal's text matches `re`; answers the matching text. */
 export async function waitForTerminal(page, ptyId, re, { timeoutMs = 60_000, lines = 1000, what } = {}) {
   return waitFor(async () => {

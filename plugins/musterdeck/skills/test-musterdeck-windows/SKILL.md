@@ -176,9 +176,12 @@ mdnode "$suite\lifecycle.mjs" --port $port --out $out --place ubuntu --folder <d
 Through the app's own controls, with a verdict per step: a Shell-only Ubuntu session from
 the New Session dialog; `TERM` and `COLORTERM`, then truecolour blocks sampled from a
 screenshot (`colour-ubuntu.png`; Windows must draw them at the exact colours); the drop
-mapping (`'/mnt/c/...'`); Rename; Split right and merge; Archive and Restore. Then a Claude
-session with a Partner Terminal: ready (a folder trust question is answered Yes); one cheap
-turn with a marker word, seeing Working on the deck and the reply; a scheduled `/rename`
+mapping (`'/mnt/c/...'`); Rename; Split right and merge; Archive (from that tab's own menu)
+and Restore (from that session's own row); the sidebar card's archive button; Close Session
+taking two clicks; Close All asking first. Then a Claude session with a Partner Terminal:
+ready (a folder trust question is answered by moving to its "Yes" option, never a bare
+Enter); one cheap turn with a marker word, seeing Working on the deck and the reply after
+the prompt; a scheduled `/rename`
 due now (a local command, no tokens) that renames the session; the Partner Terminal's `pwd`;
 Rename from the sidebar; Restart (same conversation); Archive and Restore (same
 conversation). It spends three or four short turns on the Ubuntu account in total (with R11).
@@ -204,7 +207,8 @@ mdnode "$suite\run-suite.mjs" --port $port --out $out --wsl --environment wsl:$d
 `--wsl` makes "nothing Ubuntu to check" a FAIL, so every check really looked at the Ubuntu
 sessions R7 made: Logs, the Crew card, the Resume tab, Tokenomics, Memory, projects and
 plots, Insights, skills, git, Ctrl+click plans, Codex, versions, RAM, Primary routing and
-accounts, each against what `wsl.exe` says in the distro. Each line is recorded.
+accounts, each against what `wsl.exe` says in the distro. Then `pages`: every page and
+Settings tab opens and draws, with no renderer exception. Each line is recorded.
 
 ### R10. Screenshots
 
