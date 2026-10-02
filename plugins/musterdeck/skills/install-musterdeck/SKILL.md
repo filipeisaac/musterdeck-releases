@@ -1,6 +1,6 @@
 ---
 name: install-musterdeck
-description: Download and install the latest MusterDeck release for this machine - the macOS .dmg or the Windows .exe - from the public releases repository, verify it, put it in place and launch it, then offer to add the custom Crew themes. Use when asked to install, reinstall, update or upgrade MusterDeck, or to get MusterDeck onto a new machine.
+description: Download and install the latest MusterDeck release for this machine - the macOS .dmg or the Windows .exe - from the public releases repository, verify it, put it in place and launch it, then offer to add the custom Crew themes. Also installs a named preview build when given its tag (e.g. /install-musterdeck v1.0.39-wsl-preview), and works from Claude Code running inside WSL on Windows. Use when asked to install, reinstall, update or upgrade MusterDeck, to install a preview or test build, or to get MusterDeck onto a new machine.
 ---
 
 # Installing MusterDeck
@@ -9,7 +9,9 @@ Works out which OS it is on, fetches the newest published release, checks it, in
 and offers the custom Crew themes afterwards.
 
 **Do only the section for the OS you are on.** `uname -s` gives `Darwin` on macOS; on
-Windows `$env:OS` is `Windows_NT`.
+Windows `$env:OS` is `Windows_NT`. **Inside WSL** (`uname -s` is `Linux` and
+`/proc/version` mentions `microsoft`), the machine is Windows: install the Windows build
+from there, as *3c* says. A Linux machine that is not WSL has no build.
 
 This installs a **released build**. It does not build anything and does not need the source
 repository — see `publish-musterdeck` for producing a release in the first place.
@@ -51,6 +53,23 @@ Do not download them.
 **Check the architecture before downloading.** `uname -m` must be `arm64` on macOS; an
 Intel Mac has no build and there is nothing to install — say so rather than handing over a
 DMG that will not open. On Windows, `$env:PROCESSOR_ARCHITECTURE` should be `AMD64`.
+
+### A named preview build
+
+When the user names a tag (`/install-musterdeck v1.0.39-wsl-preview`, or "install the WSL
+preview"), install THAT release instead of the newest:
+
+```bash
+curl -sS -H "Accept: application/vnd.github+json" \
+  https://api.github.com/repos/filipeisaac/musterdeck-releases/releases/tags/v1.0.39-wsl-preview
+```
+
+Its asset is `MusterDeck-<tag without the v>.exe` (or `-mac.dmg`), checked against the
+release's `CHECKSUMS.txt` like any other. Say plainly what a preview is: a test build, marked
+as a pre-release, that the app's own updater never offers to anyone. To go back, run
+`/install-musterdeck` with no tag, which installs the newest normal release over it; the
+data directory is kept either way. If the named tag does not exist, list the pre-releases
+on the repository rather than guessing.
 
 **If the asset for this OS is missing from the newest release**, say so plainly. A release
 is built one platform per machine, so the other platform's installer sometimes lands later.
@@ -186,6 +205,25 @@ The installer is **not signed**, so SmartScreen may say "unrecognised publisher"
 clicks **More info → Run anyway**. Say this before they hit it rather than after.
 
 Installing over an existing copy upgrades in place and keeps the data directory.
+
+## 3c. Windows, from inside WSL
+
+Claude Code may be running in Ubuntu on the Windows machine that should get MusterDeck.
+Windows' own tools are reachable from there (WSL interop), so install the Windows build
+without leaving WSL:
+
+```bash
+WINUSER=$(cmd.exe /c 'echo %USERNAME%' 2>/dev/null | tr -d '\r')
+DL="/mnt/c/Users/$WINUSER/Downloads"
+curl -fL -o "$DL/MusterDeck-<version>.exe" "<the asset's browser_download_url>"
+sha256sum "$DL/MusterDeck-<version>.exe"      # compare with CHECKSUMS.txt, as in step 2
+taskkill.exe /IM MusterDeck.exe /F 2>/dev/null
+cmd.exe /c start "" "C:\Users\$WINUSER\Downloads\MusterDeck-<version>.exe"
+```
+
+The wizard and the SmartScreen warning are the same as in *3b*: say so before it appears.
+If `cmd.exe` is not found, interop is off in this distro: give the user the download link
+and the hash and let them run the installer from Windows.
 
 ---
 

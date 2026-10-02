@@ -5,7 +5,7 @@
   },
   "metadata": {
     "description": "Install and maintain MusterDeck, the multi-session terminal orchestrator for Claude Code and Codex",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "pluginRoot": "./plugins"
   },
   "plugins": [
@@ -13,7 +13,7 @@
       "name": "musterdeck",
       "source": "./plugins/musterdeck",
       "description": "Install and maintain MusterDeck, and author Crew themes for it",
-      "version": "1.0.3",
+      "version": "1.0.4",
       "category": "productivity",
       "keywords": [
         "musterdeck",
