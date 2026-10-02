@@ -1,6 +1,6 @@
 ---
 name: test-musterdeck-windows
-description: Run MusterDeck's WSL test on a Windows 11 machine with Ubuntu in WSL - install the private build, run a guided pass (by default the phase 1b run - Ubuntu set up in Settings > Environments, Ubuntu Claude sessions with status, notifications, resume, drops, badges, wsl --shutdown, and a colour check; or, with `spike`, the original eight checks), write a findings report with screenshots and logs into one zip on the Desktop to send back, then remove every trace of MusterDeck from the machine. Use when asked to test MusterDeck on Windows, run the WSL checks or the phase 1b test, run /test-musterdeck-windows, or "do the MusterDeck test Filipe asked for".
+description: Run MusterDeck's WSL test on a Windows 11 machine with Ubuntu in WSL. By default the parity run - Claude installs the test build, starts it in a test mode against a throwaway data folder, drives Ubuntu and Windows sessions through the app itself and runs the whole automated suite (about 60 checks), then asks the person only for what needs eyes or would disrupt their machine - writes a findings report with screenshots and logs into one zip on the Desktop to send back, and removes every trace afterwards. Also runs the older phase 1b and spike passes when asked. Use when asked to test MusterDeck on Windows, run the WSL checks, the parity suite or the phase 1b test, run /test-musterdeck-windows, or "do the MusterDeck test Filipe asked for".
 ---
 
 # Testing MusterDeck on Windows (the WSL test)
@@ -13,12 +13,13 @@ them read the procedure.
 
 ## Which run
 
-`/test-musterdeck-windows [phase-1b | spike]`. **With no argument, run the newest:
-`phase-1b`.**
+`/test-musterdeck-windows [parity | phase-1b | spike] [tag]`. **With no argument, run
+`parity`.**
 
 | Run | Build (tag) | What it covers | Steps |
 |---|---|---|---|
-| `phase-1b` | `v1.0.58-wsl-preview` (status bar `CLI v1.0.58`), unless Filipe named another | the whole Ubuntu experience: setting Ubuntu up, Ubuntu Claude sessions, status, notifications, resume, drops, badges, `wsl --shutdown`, and a colour check | 0, 1, 2, then P1 to P11, then 5 to 7 |
+| `parity` | the tag Filipe named, else the newest `*-wsl-*` pre-release (see R3) | every feature of an Ubuntu session beside a Windows one, driven and checked by Claude through the app's test mode; a short list for the person at the end | 0, then R1 to R14, then 6 and 7 |
+| `phase-1b` | `v1.0.58-wsl-preview` (status bar `CLI v1.0.58`), unless Filipe named another | the whole Ubuntu experience by hand: setting Ubuntu up, Ubuntu Claude sessions, status, notifications, resume, drops, badges, `wsl --shutdown`, and a colour check | 0, 1, 2, then P1 to P11, then 5 to 7 |
 | `spike` | `v1.0.39-wsl-preview` (`CLI v1.0.39`) | the eight measurements taken before anything was built | 0, 1, 2, 3, 4, then 5 to 7 |
 
 If Filipe's message names a different tag, use his. Say which run this is in the first
@@ -31,7 +32,8 @@ Filipe.
 
 **What it never does:** send anything anywhere (the person sends the zip themselves);
 touch their own Claude Code setup beyond the files MusterDeck itself created; delete
-anything before the zip exists and they have said yes.
+anything before the zip exists and they have said yes. In the parity run, the app under
+test never sees their real MusterDeck data: it runs against a throwaway data folder.
 
 ## Where this is running
 
@@ -42,9 +44,259 @@ Claude Code may be running on Windows (PowerShell) or inside Ubuntu (WSL). Both 
 - **Inside WSL** (`uname -s` is `Linux` and `/proc/version` mentions `microsoft`): run the
   Ubuntu commands directly, and the Windows ones through
   `powershell.exe -NoProfile -Command '<command>'`. Windows paths are under `/mnt/c/`.
+  The parity suite's scripts must run on WINDOWS (they call `wsl.exe` and read Windows
+  paths), so in the parity run put every `mdnode` line inside one `powershell.exe` call.
 
 Set `$env:WSL_UTF8 = "1"` (or `WSL_UTF8=1`) before any `wsl.exe` call so its output is
 readable text instead of UTF-16.
+
+## The parity run (R1 to R14)
+
+Claude runs this one end to end. The app has a **test mode**: started with
+`MUSTERDECK_TEST_CDP=<port>` it opens a debugging port on 127.0.0.1 only, and
+`MUSTERDECK_TEST_DATA_DIR=<folder>` (honoured only together with it) gives it a throwaway
+data folder, seeded past the first-run screens, with its own Electron folder. The suite in
+this skill's `suite/` folder drives the app through that port the way a person does (it
+clicks, types and reads what the window shows) and records every verdict with its evidence
+in `results.jsonl`; `report.mjs` turns that into `findings.md`. The suite needs nothing but
+Node 22 or later: no npm, no repo.
+
+Record every check, even a pass. Do not stop at a FAIL: note it and go on, unless a later
+step needs what failed (then say so and skip it). Talk to the person only where a step says
+so, and at R12.
+
+### R1. The suite and Node
+
+Do step 0 (the findings folder `$out`) first. Then:
+
+```powershell
+$suite = Join-Path "<this skill's base directory>" "suite"     # the folder beside this SKILL.md
+$mdExe = Join-Path $env:LOCALAPPDATA "Programs\MusterDeck\MusterDeck.exe"
+$script:nodeOk = $false
+try { $script:nodeOk = [int]((node --version) -replace '^v','').Split('.')[0] -ge 22 } catch {}
+function mdnode {
+  if ($script:nodeOk) { & node @args; return }
+  # No Node 22 here: MusterDeck's own Electron is a Node 24 (fetch and WebSocket built in).
+  $q = ($args | ForEach-Object { '"' + ($_ -replace '"', '\"') + '"' }) -join ' '
+  $o = New-TemporaryFile; $e = New-TemporaryFile
+  $env:ELECTRON_RUN_AS_NODE = '1'
+  try {
+    $p = Start-Process -FilePath $mdExe -ArgumentList $q -NoNewWindow -Wait -PassThru -RedirectStandardOutput $o -RedirectStandardError $e
+    Get-Content $o; Get-Content $e | Write-Host; $global:LASTEXITCODE = $p.ExitCode
+  } finally { Remove-Item Env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue; Remove-Item $o, $e -ErrorAction SilentlyContinue }
+}
+```
+
+Nothing is downloaded for Node: with no Node 22, the suite runs on the app it tests, so R2
+then waits until R3 has installed it. `ELECTRON_RUN_AS_NODE` must never be set while the app
+itself is started (it would start as Node, not as MusterDeck); `mdnode` sets it only for its
+own child and removes it.
+
+### R2. Preflight
+
+```powershell
+mdnode "$suite\preflight.mjs" --out $out
+```
+
+It records the Windows build, the Node running the suite, `wsl --version`, the distros (it
+picks Ubuntu; pass `--distro <name>` if the person uses another), the distro's networking
+mode and its own `claude`, `node`, `git` and `codex` (never a `/mnt/` copy), and whether
+Windows itself has Claude. Its last line is `machine.json`: keep `distro`,
+`inDistro.codex` and `windowsClaude` for later steps (`$distro = "<machine.distro>"`). A Windows build before 22621 or no
+distro: stop, zip (R14) and clean up. NAT networking or no Claude in Ubuntu: tell the person
+(most Ubuntu checks will fail), and ask whether to go on.
+
+### R3. Install the build
+
+Is MusterDeck already installed, and does the person use it for real work? Ask. If it is
+running, ask them to quit it (the test app must be the only MusterDeck running). Say
+plainly that step 6 will remove the app at the end, after asking. Their own MusterDeck data
+is never opened by this run.
+
+The tag: the one Filipe named, else the newest WSL pre-release:
+
+```powershell
+(Invoke-RestMethod "https://api.github.com/repos/filipeisaac/musterdeck-releases/releases?per_page=50") |
+  Where-Object { $_.prerelease -and $_.tag_name -like '*-wsl-*' } | Select-Object -First 1 -ExpandProperty tag_name
+```
+
+Install it with the **`install-musterdeck`** skill, naming that tag (it verifies the
+SHA-256). Do NOT let it launch the app for real use: if it opens MusterDeck, quit it
+(`taskkill /IM MusterDeck.exe`) before R4. Record the tag and
+`(Get-Item $mdExe).VersionInfo.ProductVersion`.
+
+### R4. Start the app in test mode
+
+```powershell
+$port = 9339
+$dataDir = Join-Path $env:TEMP "md-parity-$stamp"
+function Start-TestApp {
+  $env:MUSTERDECK_TEST_CDP = "$port"; $env:MUSTERDECK_TEST_DATA_DIR = $dataDir
+  try { Start-Process -FilePath $mdExe } finally { Remove-Item Env:MUSTERDECK_TEST_CDP, Env:MUSTERDECK_TEST_DATA_DIR -ErrorAction SilentlyContinue }
+}
+Start-TestApp
+mdnode "$suite\list-sessions.mjs" --port $port
+```
+
+`list-sessions` waits for the window and should say `0 session(s)`. If nothing answers,
+check no other MusterDeck is running and that port 9339 is free, then try another port.
+Ask the person to leave the MusterDeck window open and not to click in it until R12 (it may
+sit behind other windows; it must not be minimised, or its screenshots come out blank).
+
+### R5. Set Ubuntu up in the app
+
+```powershell
+mdnode "$suite\setup-environment.mjs" --port $port --out $out --distro $distro
+```
+
+It answers the "Ubuntu found" prompt (or opens Settings > Environments), clicks Add Ubuntu
+and Run the check, and records what the probe found. Its last line names the
+`environmentId` (`wsl:<distro>`) and says whether Ubuntu's Claude is signed in. **Not
+signed in**: the person must do it once (a sign-in in the browser): ask them to open
+Settings > Environments in the test window and click **Sign in** under Ubuntu, finish it,
+and close that tab; then run setup-environment again.
+
+### R6. Fixtures
+
+```powershell
+mdnode "$suite\fixtures.mjs" --create --out $out --distro $distro
+```
+
+It makes `~/md-suite-<stamp>/repo` in Ubuntu (a git repository with a project skill, a
+tracked `notes.md` and an untracked file) and `%TEMP%\md-suite-<stamp>\` on Windows (a
+repo, `drop me.txt`, a `project` folder), and writes `fixtures.json`. Read it: the paths
+below come from it (`distro.repo`, `host.repo`, `host.dropFile`, `host.project`).
+
+### R7. An Ubuntu session's whole life
+
+```powershell
+mdnode "$suite\lifecycle.mjs" --port $port --out $out --place ubuntu --folder <distro.repo> --claude --drop "<host.dropFile>"
+```
+
+Through the app's own controls, with a verdict per step: a Shell-only Ubuntu session from
+the New Session dialog; `TERM` and `COLORTERM`, then truecolour blocks sampled from a
+screenshot (`colour-ubuntu.png`; Windows must draw them at the exact colours); the drop
+mapping (`'/mnt/c/...'`); Rename; Split right and merge; Archive and Restore. Then a Claude
+session with a Partner Terminal: ready (a folder trust question is answered Yes); one cheap
+turn with a marker word, seeing Working on the deck and the reply; a scheduled `/rename`
+due now (a local command, no tokens) that renames the session; the Partner Terminal's `pwd`;
+Rename from the sidebar; Restart (same conversation); Archive and Restore (same
+conversation). It spends three or four short turns on the Ubuntu account in total (with R11).
+
+### R8. The same on a Windows session (the regression run)
+
+```powershell
+mdnode "$suite\lifecycle.mjs" --port $port --out $out --place native --folder "<host.repo>" --drop "<host.dropFile>" <--claude only if windowsClaude>
+```
+
+The same steps on a Windows session in the same app, so nothing that works for Windows
+broke on the way. Without Claude on Windows, the shell half only.
+
+### R9. Every check in the suite
+
+Say first, in one line, that the Insights run takes several minutes and spends tokens on the
+Ubuntu account. Then:
+
+```powershell
+mdnode "$suite\run-suite.mjs" --port $port --out $out --wsl --environment wsl:$distro --project "<host.project>" --insights-run <--codex-run only if inDistro.codex>
+```
+
+`--wsl` makes "nothing Ubuntu to check" a FAIL, so every check really looked at the Ubuntu
+sessions R7 made: Logs, the Crew card, the Resume tab, Tokenomics, Memory, projects and
+plots, Insights, skills, git, Ctrl+click plans, Codex, versions, RAM, Primary routing and
+accounts, each against what `wsl.exe` says in the distro. Each line is recorded.
+
+### R10. Screenshots
+
+```powershell
+mdnode "$suite\screenshot.mjs" --port $port --out $out --name r10-chat-ubuntu --session <the Ubuntu Claude session id from lifecycle-ubuntu.json>
+mdnode "$suite\screenshot.mjs" --port $port --out $out --name r10-crew --view Crew
+mdnode "$suite\screenshot.mjs" --port $port --out $out --name r10-tokenomics --view Tokenomics
+mdnode "$suite\screenshot.mjs" --port $port --out $out --name r10-chat --view Chat
+```
+
+Read each back. The Chat one should show UBUNTU and WINDOWS badges on the tabs and rows.
+
+### R11. Quit, start again, resume
+
+```powershell
+mdnode "$suite\quit-app.mjs" --port $port --out $out
+Start-TestApp
+mdnode "$suite\lifecycle.mjs" --port $port --out $out --place ubuntu --folder <distro.repo> --phase resume
+mdnode "$suite\lifecycle.mjs" --port $port --out $out --place native --folder "<host.repo>" --phase resume
+```
+
+`quit-app` closes the window and answers the close dialog with Save Sessions, as a person
+would. After the restart the sessions must be back with their names, and each Claude
+session, asked for the marker word, must answer it from the SAME conversation.
+
+### R12. The human checks
+
+Tell the person the automated part is done, and that a few things need their eyes. Go
+through the items below in order, one at a time: say what to do and what to look for, help
+with anything Claude can do (typing into a session with
+`mdnode "$suite\type.mjs" --port $port --pty <id> --text "<line>"`, opening a folder in
+Explorer, taking a screenshot with `screenshot.mjs`, checking a folder in Ubuntu), then
+record their answer in their words:
+
+```powershell
+mdnode "$suite\report.mjs" --out $out --set <id> --status PASS|FAIL|SKIP --note "<what they saw>"
+```
+
+Skip an item the person cannot do (no second account, no VS Code, no Codex) with `SKIP`
+and the reason. The items (also in `suite/lib/human.mjs`, which the report lists with
+exactly this wording):
+
+| id | What | Needs |
+|---|---|---|
+| `toast` | a Windows notification from an Ubuntu session's permission request, clicked | eyes |
+| `cloud-title` | the renamed Ubuntu session's name on claude.ai or the phone | another device or a browser |
+| `explorer-drag` | a real drag of `drop me.txt` from Explorer onto the Ubuntu shell | a hand |
+| `vscode` | Ctrl+click `notes.md` in the Ubuntu Partner Terminal opens VS Code in WSL | VS Code installed |
+| `crew` | the Crew shows each md-suite session, the Ubuntu card shows the marker | eyes |
+| `account-add` | Settings > Accounts > Add an account in Ubuntu, sign in with a second account | a sign-in in the browser |
+| `account-same` | signing in with the account Ubuntu already uses is refused | a sign-in |
+| `account-abandon` | closing the sign-in tab early leaves nothing (Claude checks `~/.musterdeck/profiles`) | a hand |
+| `account-session` | a session on the added account; Switch and back keep the conversation; then Claude re-runs `run-suite.mjs --wsl --only logs,tokenomics,skills,accounts` | a hand |
+| `account-usage` | Account usage and the Limits card: UBUNTU tags, real figures; re-auth refreshes | eyes, a sign-in |
+| `account-default` | the default account pre-selects for Ubuntu only; Insights under the added account | a hand |
+| `account-remove` | Remove refused while its session is open, then removed (Claude checks the folder) | a hand |
+| `codex-human` | a Codex turn in Ubuntu shows context and cost, resumes after a relaunch, and a Codex review from the Ubuntu Claude session | Codex in Ubuntu |
+| `wsl-shutdown` | `wsl --shutdown`: Disconnected, Restart, same conversation; usage panels do not start Ubuntu | **an explicit yes** |
+
+`wsl-shutdown` stops everything running in WSL, Docker included: ask, explain that, and do
+it only on a clear yes. **Never** from inside WSL (it would end this conversation): then give
+the person the steps to do after the zip exists, and ask them to add what they saw to their
+reply to Filipe. After it, the app may need Restart on each Ubuntu tab; record what happened.
+
+### R13. Logs
+
+From the THROWAWAY data folder (never the person's real one):
+
+```powershell
+$appLog = Join-Path $dataDir "debug\app.log"
+Select-String -Path $appLog -Pattern '\[wsl\]' | ForEach-Object Line | Set-Content (Join-Path $out "wsl-lines.txt")
+Get-Content $appLog -Tail 600 | Set-Content (Join-Path $out "app-log-tail.txt")
+Get-Content (Join-Path $dataDir "debug\user-actions.log") -Tail 800 | Set-Content (Join-Path $out "user-actions-tail.txt")
+Copy-Item (Join-Path $dataDir "resources\CONFIG\environments.json") (Join-Path $out "environments.json")
+```
+
+`environments.json` holds no secrets (environment names, folders, the Primary).
+
+### R14. Write it up and zip it
+
+```powershell
+mdnode "$suite\quit-app.mjs" --port $port --out $out
+mdnode "$suite\fixtures.mjs" --remove --out $out
+mdnode "$suite\report.mjs" --out $out --run parity --build "<tag>"
+Compress-Archive -Path "$out\*" -DestinationPath "$out.zip" -Force
+```
+
+Read `findings.md` back once: the summary table lists every automated check and every human
+one ("not done" for any that was not answered, never a pass). In your message to the person,
+give the counts (passed, failed, skipped, human answered) and name each FAIL in one line.
+Then step 6, where the throwaway data folder `$dataDir` goes first (it is ours: no question
+needed, but list it), then the rest only after their yes.
 
 ## 0. The findings folder
 
@@ -391,6 +643,11 @@ Read `findings.md` back once; the zip must exist before step 6 starts.
 
 Show the person this list, with the real paths, and ask for a yes before deleting anything.
 Their own Claude Code setup is not touched, except files MusterDeck itself created there.
+
+**Parity run first**: remove the throwaway data folder `$dataDir` (`%TEMP%\md-parity-*`)
+without asking (this run made it, and the app under test kept everything there), and check
+`fixtures.mjs --remove` left no `md-suite-*` folder in `%TEMP%` or in Ubuntu's home. Then
+the list below, with its yes, as for any run.
 
 1. Quit MusterDeck: `taskkill /IM MusterDeck.exe /F`.
 2. Uninstall it: find `MusterDeck` under

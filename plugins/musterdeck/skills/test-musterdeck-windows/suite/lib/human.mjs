@@ -1,0 +1,82 @@
+/**
+ * human.mjs -- what the parity run cannot judge by itself: it needs eyes, a sign-in in a
+ * browser, another device, or it would disrupt the machine. Each item says exactly what to do
+ * and what to look for. The skill walks the tester through them at the END of the run, and
+ * `report.mjs --set human.<id>` records each answer.
+ *
+ * `when`: 'always', 'codex' (Codex is installed in the distro), 'vscode' (VS Code is
+ * installed), 'consent' (disruptive: only after an explicit yes, and never while Claude runs
+ * inside WSL itself).
+ */
+export const HUMAN = [
+  {
+    id: 'toast', when: 'always', title: 'A Windows notification from an Ubuntu session',
+    do: 'Put MusterDeck behind another window. Claude types into the Ubuntu Claude session: "create a file named md-suite-toast.txt" (it asks permission).',
+    look: 'A Windows notification appears; clicking it brings MusterDeck forward on that session. Then answer the permission with No.',
+  },
+  {
+    id: 'cloud-title', when: 'always', title: 'The renamed session on claude.ai or the phone',
+    do: 'Open claude.ai/code in a browser (or the Claude app on the phone) and find the recent sessions list.',
+    look: 'The Ubuntu Claude session is listed by its new name, "md-suite ubuntu claude renamed <stamp>", not by a hostname like ip-192-168-...',
+  },
+  {
+    id: 'explorer-drag', when: 'always', title: 'A real drag from Explorer',
+    do: 'Claude opens the fixture folder in Explorer. Drag "drop me.txt" onto the Ubuntu shell session\'s terminal. Do not press Enter.',
+    look: "The terminal shows a quoted Linux path ending in drop me.txt, starting '/mnt/c/. Claude reads the terminal and compares it with the dry run.",
+  },
+  {
+    id: 'vscode', when: 'vscode', title: 'Ctrl+click opens VS Code in WSL',
+    do: 'In the Ubuntu Claude session\'s Partner Terminal, Claude types ls. Ctrl+click notes.md.',
+    look: 'VS Code opens notes.md with "WSL: Ubuntu" in its bottom left corner. Close VS Code afterwards.',
+  },
+  {
+    id: 'crew', when: 'always', title: 'The Crew shows the Ubuntu sessions',
+    do: 'Claude opens the Crew and takes a screenshot. Look at the map.',
+    look: 'Each open md-suite session has an agent; clicking the Ubuntu Claude one shows its conversation (the marker word) on the card. Nothing is blank or black.',
+  },
+  {
+    id: 'account-add', when: 'always', title: 'Add a second account in Ubuntu (sign-in in the browser)',
+    do: 'Settings > Accounts > "Add an account in Ubuntu". In the Ubuntu tab that opens, sign in with a DIFFERENT account than Ubuntu already uses (or the same email in another organisation). Skip this and the account items below if there is no second account.',
+    look: 'The account appears in the Ubuntu section and the tab is labelled with its email. Claude then checks its folder with accounts.mjs.',
+  },
+  {
+    id: 'account-same', when: 'always', title: 'The same account twice is refused',
+    do: 'Add an account in Ubuntu again, and sign in with the account Ubuntu already uses.',
+    look: '"You are already signed in as ... here", and the half-made account disappears from the list.',
+  },
+  {
+    id: 'account-abandon', when: 'always', title: 'Closing a sign-in tab early leaves nothing behind',
+    do: 'Add an account in Ubuntu once more, and close the sign-in tab before signing in.',
+    look: 'Nothing new is left in the list. Claude checks that no new folder is left under ~/.musterdeck/profiles in Ubuntu.',
+  },
+  {
+    id: 'account-session', when: 'always', title: 'A session on the added account, and Switch',
+    do: 'New Session, place Ubuntu: the account picker lists only Ubuntu accounts; pick the added one and Create. Then, on the status line account menu, Switch to the other Ubuntu account, and back.',
+    look: 'The picker and the menu list only Ubuntu accounts. The chip and `claude /status` agree on the account; after each Switch the SAME conversation continues. Claude then re-runs logs, tokenomics, skills and accounts for this session.',
+  },
+  {
+    id: 'account-usage', when: 'always', title: 'Account usage and the Limits card',
+    do: 'Open Account usage (sidebar Tools) and Tokenomics. On the added Ubuntu account in the usage overview, click Sign in (re-auth) and finish it.',
+    look: 'Ubuntu accounts carry an UBUNTU tag with real percentages; the row refreshes after signing in.',
+  },
+  {
+    id: 'account-default', when: 'always', title: 'Default account and Insights per account',
+    do: 'Tick "default for new sessions" on the added Ubuntu account, open New Session (Ubuntu, then Windows). Then Insights: choose the added Ubuntu account and run it (Claude says first that it spends tokens).',
+    look: 'The default is pre-selected for Ubuntu sessions only. The Insights run says it ran under that account.',
+  },
+  {
+    id: 'account-remove', when: 'always', title: 'Remove the added Ubuntu account',
+    do: 'Settings > Accounts: Remove the added Ubuntu account while its session is open, then close that session and Remove again.',
+    look: 'Refused while the session is open; then it goes. Claude checks ~/.musterdeck/profiles/<id> is gone and ~/.claude is untouched.',
+  },
+  {
+    id: 'codex-human', when: 'codex', title: 'Codex in Ubuntu, by eye',
+    do: 'New Session, Ubuntu, provider Codex, in the fixture repo; one short turn. Quit and reopen MusterDeck (Claude does it). Then, in the Ubuntu Claude session, ask for a Codex review of notes.md.',
+    look: 'The strip shows context and cost after the turn; after the relaunch the same Codex conversation continues; the review comes back in the Claude session.',
+  },
+  {
+    id: 'wsl-shutdown', when: 'consent', title: 'wsl --shutdown with sessions open (disruptive)',
+    do: 'Only with a clear yes: it stops EVERYTHING running in WSL, Docker included. Claude runs wsl --shutdown from PowerShell and watches the Ubuntu Claude tab.',
+    look: 'Within seconds the tab says Disconnected with a Restart button. Restart: "Starting Ubuntu..." then the SAME conversation (asked, it answers the marker word). Usage panels show the last figures or "Ubuntu is not running" and do not start Ubuntu.',
+  },
+]
