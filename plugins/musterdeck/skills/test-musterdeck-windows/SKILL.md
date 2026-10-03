@@ -18,7 +18,7 @@ them read the procedure.
 
 | Run | Build (tag) | What it covers | Steps |
 |---|---|---|---|
-| `parity` | the tag Filipe named, else the newest `*-wsl-*` pre-release (see R3) | every feature of an Ubuntu session beside a Windows one, driven and checked by Claude through the app's test mode; a short list for the person at the end | 0, then R1 to R14, then 6 and 7 |
+| `parity` | the tag Filipe named, else the newest release (see R3) | every feature of an Ubuntu session beside a Windows one, driven and checked by Claude through the app's test mode; a short list for the person at the end | 0, then R1 to R14, then 6 and 7 |
 | `phase-1b` | `v1.0.58-wsl-preview` (status bar `CLI v1.0.58`), unless Filipe named another | the whole Ubuntu experience by hand: setting Ubuntu up, Ubuntu Claude sessions, status, notifications, resume, drops, badges, `wsl --shutdown`, and a colour check | 0, 1, 2, then P1 to P11, then 5 to 7 |
 | `spike` | `v1.0.39-wsl-preview` (`CLI v1.0.39`) | the eight measurements taken before anything was built | 0, 1, 2, 3, 4, then 5 to 7 |
 
@@ -113,11 +113,11 @@ running, ask them to quit it (the test app must be the only MusterDeck running).
 plainly that step 6 will remove the app at the end, after asking. Their own MusterDeck data
 is never opened by this run.
 
-The tag: the one Filipe named, else the newest WSL pre-release:
+The tag: the one Filipe named, else the newest release. Ubuntu support ships in the regular
+releases since 1.0.107, so the `*-wsl-*` pre-releases are history:
 
 ```powershell
-(Invoke-RestMethod "https://api.github.com/repos/filipeisaac/musterdeck-releases/releases?per_page=50") |
-  Where-Object { $_.prerelease -and $_.tag_name -like '*-wsl-*' } | Select-Object -First 1 -ExpandProperty tag_name
+(Invoke-RestMethod "https://api.github.com/repos/filipeisaac/musterdeck-releases/releases/latest").tag_name
 ```
 
 Install it with the **`install-musterdeck`** skill, naming that tag (it verifies the
@@ -182,7 +182,13 @@ taking two clicks; Close All asking first. Then a Claude session with a Partner 
 ready (a folder trust question is answered by moving to its "Yes" option, never a bare
 Enter); one cheap turn with a marker word, seeing Working on the deck and the reply after
 the prompt; a scheduled `/rename`
-due now (a local command, no tokens) that renames the session; the Partner Terminal's `pwd`;
+due now (a local command, no tokens) that renames the session, to a name WITH spaces (they
+ran together until 1.0.109); the Partner Terminal's `pwd`, and on 1.0.121 and later that it
+rolls up from the bottom under Claude at about 30% of the pane; a message scheduled an hour
+ahead putting the session On watch on the deck AND on the Crew, where its figure must stand
+at its building wearing the clock badge (`crew-watch-<place>.png`; the clock never drew
+before 1.0.124), then cancelled; this also visits the Crew before the archive below, which
+lost the session before 1.0.110;
 Rename from the sidebar; Restart (same conversation); Archive and Restore (same
 conversation). It spends three or four short turns on the Ubuntu account in total (with R11).
 
@@ -258,6 +264,8 @@ exactly this wording):
 | `explorer-drag` | a real drag of `drop me.txt` from Explorer onto the Ubuntu shell | a hand |
 | `vscode` | Ctrl+click `notes.md` in the Ubuntu Partner Terminal opens VS Code in WSL | VS Code installed |
 | `crew` | the Crew shows each md-suite session, the Ubuntu card shows the marker | eyes |
+| `crew-roam` | an idle bot dragged to another zone stays there; one dropped off every zone walks to the nearest | a hand |
+| `drawer` | the Terminal button rolls a terminal up under Claude, resizes, Esc returns to Claude, reopening keeps it | a hand |
 | `account-add` | Settings > Accounts > Add an account in Ubuntu, sign in with a second account | a sign-in in the browser |
 | `account-same` | signing in with the account Ubuntu already uses is refused | a sign-in |
 | `account-abandon` | closing the sign-in tab early leaves nothing (Claude checks `~/.musterdeck/profiles`) | a hand |

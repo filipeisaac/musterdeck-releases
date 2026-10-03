@@ -357,9 +357,16 @@ if (phase === 'main') {
     if (place === 'ubuntu' && shell.environmentId !== env.id) throw new Error(`environment ${shell.environmentId}, expected ${env.id}`)
     await activate(shell.id)
     const t = await waitFor(async () => { const x = await terminalText(page, shell.id); return x.trim().length > 0 ? x : null }, { timeoutMs, what: 'a shell prompt' })
-    await typeInTerminal(page, shell.id, echo(`md-suite-alive-${stamp}`))
-    await waitForTerminal(page, shell.id, new RegExp(`^md-suite-alive-${stamp}\\s*$`, 'm'), { timeoutMs: 30_000 })
-    return { evidence: [`session ${shell.id} host ${shell.host}${shell.environmentId ? ` ${shell.environmentId}` : ''} in ${shell.workingDirectory}`, `first output: ${t.trim().split('\n').pop()}`] }
+    // A shell can drop the first keystrokes while its line editor is still starting (seen on
+    // macOS zsh, 1.0.126 run): retype up to three times before calling it dead.
+    const alive = new RegExp(`^md-suite-alive-${stamp}\\s*$`, 'm')
+    let tries = 0
+    for (;;) {
+      tries++
+      await typeInTerminal(page, shell.id, echo(`md-suite-alive-${stamp}`))
+      try { await waitForTerminal(page, shell.id, alive, { timeoutMs: 12_000 }); break } catch (e) { if (tries >= 3) throw e }
+    }
+    return { evidence: [`answered after ${tries} attempt(s)`, `session ${shell.id} host ${shell.host}${shell.environmentId ? ` ${shell.environmentId}` : ''} in ${shell.workingDirectory}`, `first output: ${t.trim().split('\n').pop()}`] }
   })
 
   if (shell) {
@@ -514,7 +521,9 @@ if (phase === 'main') {
         // A local command, so it spends nothing: /rename prints "Session renamed to: <name>",
         // which the app reads straight from the terminal into the session's label.
         await activate(claude.id)
-        const name = `md-suite-sched-${stamp}`
+        // Spaces on purpose: Claude draws them as cursor moves, which ran the words together
+        // in the label until 1.0.109.
+        const name = `md-suite sched ${stamp}`
         await tabMenuItem(claude.id, 'Schedule a message…')
         await setValue(page, { css: 'input[maxlength]' }, `/rename ${name}`)
         const d = new Date()
@@ -543,8 +552,66 @@ if (phase === 'main') {
           return x.toLowerCase().includes(want.toLowerCase()) && x.split('\n').some((l) => l.trim().toLowerCase().endsWith(want.toLowerCase()) && !/pwd/.test(l)) ? x : null
         }, { timeoutMs: 20_000, what: `pwd to print ${want}` })
         const line = t.split('\n').map((l) => l.trim()).filter((l) => l.toLowerCase().endsWith(want.toLowerCase()) && !/pwd/.test(l)).pop()
-        await click(page, { css: 'button[aria-label="Switch back to Claude"]' })
-        return { evidence: [`pwd in ${pid}: ${line}`] }
+        const evidence = [`pwd in ${pid}: ${line}`]
+        // 1.0.121 rolls the terminal up from the bottom under Claude; before, it replaced Claude.
+        if (await exists(page, { css: '[aria-label="Resize the terminal"]' })) {
+          // `page.evaluate` takes an expression (lib/cdp.mjs), not a function.
+          const shape = await page.evaluate(`(() => {
+            const edge = document.querySelector('[aria-label="Resize the terminal"]')
+            const drawer = edge && edge.parentElement
+            const pane = drawer && drawer.parentElement
+            const r = drawer && drawer.getBoundingClientRect(), pr = pane && pane.getBoundingClientRect()
+            return { ratio: r && pr && pr.height ? r.height / pr.height : null }
+          })()`)
+          evidence.push(`drawer: ${shape.ratio == null ? 'unmeasured' : Math.round(shape.ratio * 100) + '% of the pane'}, Claude above it`)
+          if (shape.ratio != null && (shape.ratio < 0.15 || shape.ratio > 0.5)) throw failWith('the terminal drawer is not about 30% of the pane', evidence)
+          await click(page, { css: 'button[aria-label="Hide Terminal"]' })
+        } else {
+          await click(page, { css: 'button[aria-label="Switch back to Claude"]' })
+        }
+        return { evidence }
+      })
+
+      await run('crew-watch', 'A message scheduled for later puts the session On watch, on the deck and on the Crew with its clock', async () => {
+        await activate(claude.id)
+        await tabMenuItem(claude.id, 'Schedule a message…')
+        await setValue(page, { css: 'input[maxlength]' }, '/rename md-suite never sent')
+        const later = new Date(Date.now() + 60 * 60 * 1000)
+        const p2 = (n) => String(n).padStart(2, '0')
+        if (await exists(page, { css: 'input[type="datetime-local"]' })) {
+          await setValue(page, { css: 'input[type="datetime-local"]' }, `${later.getFullYear()}-${p2(later.getMonth() + 1)}-${p2(later.getDate())}T${p2(later.getHours())}:${p2(later.getMinutes())}`)
+        }
+        await click(page, { text: 'Schedule', exact: true })
+        const evidence = []
+        const thread = await waitFor(async () => {
+          const ts = await callTestApi(page, 'crewThreads')
+          const t = Array.isArray(ts) ? ts.find((x) => x.sessionId === claude.id) : null
+          return t && t.deckStatus === 'watching' && t.behaviour === 'watching' ? t : null
+        }, { timeoutMs: 30_000, what: 'the deck and the Crew both to say On watch' })
+        evidence.push(`deck ${thread.deckStatus}, Crew behaviour ${thread.behaviour}`)
+        if (await exists(page, { css: 'button[aria-label="Crew"]' })) {
+          await click(page, { css: 'button[aria-label="Crew"]' })
+          // 1.0.124: the clock badge (8) was drawn from outside its atlas, so it never showed.
+          const fig = await waitFor(async () => {
+            const as = await callTestApi(page, 'crewAgents')
+            const a = Array.isArray(as) ? as.find((x) => x.id === thread.id) : null
+            return a && a.status === 'watching' && a.state === 'at-site' && a.badge === 8 ? a : null
+          }, { timeoutMs: 60_000, what: 'the figure to stand at its building with the clock badge' })
+          evidence.push(`figure ${fig.status}, ${fig.state}, badge ${fig.badge}`)
+          const shot = path.join(out, `crew-watch-${place}.png`)
+          fs.writeFileSync(shot, await screenshot(page))
+          evidence.push(`screenshot ${path.basename(shot)}`)
+          await toChat()
+        } else evidence.push('no Crew button in this build: figure not checked')
+        await activate(claude.id)
+        await click(page, { text: 'Cancel', exact: true })
+        await waitFor(async () => {
+          const ts = await callTestApi(page, 'crewThreads')
+          const t = Array.isArray(ts) ? ts.find((x) => x.sessionId === claude.id) : null
+          return t && t.deckStatus !== 'watching'
+        }, { timeoutMs: 30_000, what: 'the session to leave On watch once the message is cancelled' })
+        evidence.push('cancelled: no longer On watch (the Crew was visited, so the archive below also covers 1.0.110)')
+        return { evidence }
       })
 
       await run('rename-claude', 'Rename a Claude session from the sidebar', async () => {

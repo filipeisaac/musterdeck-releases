@@ -35,6 +35,16 @@ export const HUMAN = [
     look: 'Each open md-suite session has an agent; clicking the Ubuntu Claude one shows its conversation (the marker word) on the card. Nothing is blank or black.',
   },
   {
+    id: 'crew-roam', when: 'always', title: 'An idle bot dragged to another zone stays there',
+    do: 'On the Crew, drag an idle md-suite figure (no badge over its head) onto a different zone, wait 30 seconds; then drag one onto bare ground outside every zone and wait 15 seconds.',
+    look: 'The first stays and potters on the zone you dropped it on (it used to run home after 5 s). The second walks back onto the nearest zone by itself.',
+  },
+  {
+    id: 'drawer', when: 'always', title: 'The Terminal button rolls a terminal up under Claude',
+    do: 'On the Ubuntu Claude session, click Terminal on the bar under it; drag the drawer\'s top edge up and down; press Esc; click Terminal again.',
+    look: 'A terminal in the session\'s Ubuntu folder slides up over the bottom third, Claude stays visible above it, the edge resizes it, Esc puts the cursor back in Claude, and reopening shows the same terminal with its earlier output.',
+  },
+  {
     id: 'account-add', when: 'always', title: 'Add a second account in Ubuntu (sign-in in the browser)',
     do: 'Settings > Accounts > "Add an account in Ubuntu". In the Ubuntu tab that opens, sign in with a DIFFERENT account than Ubuntu already uses (or the same email in another organisation). Skip this and the account items below if there is no second account.',
     look: 'The account appears in the Ubuntu section and the tab is labelled with its email. Claude then checks its folder with accounts.mjs.',
