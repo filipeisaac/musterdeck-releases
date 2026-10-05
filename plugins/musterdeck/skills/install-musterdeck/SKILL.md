@@ -14,7 +14,7 @@ Windows `$env:OS` is `Windows_NT`. **Inside WSL** (`uname -s` is `Linux` and
 from there, as *3c* says. A Linux machine that is not WSL has no build.
 
 This installs a **released build**. It does not build anything and does not need the source
-repository — see `publish-musterdeck` for producing a release in the first place.
+repository; see `publish-musterdeck` for producing a release in the first place.
 
 It reaches you as a Claude Code plugin rather than with the app, deliberately: a skill whose
 job is to install something cannot be delivered by the thing it installs. If you are reading
@@ -51,12 +51,14 @@ Take `tag_name` as the version and find the asset for this machine:
 Do not download them.
 
 **Check the architecture before downloading.** `uname -m` must be `arm64` on macOS; an
-Intel Mac has no build and there is nothing to install — say so rather than handing over a
+Intel Mac has no build and there is nothing to install: say so rather than handing over a
 DMG that will not open. On Windows, `$env:PROCESSOR_ARCHITECTURE` should be `AMD64`.
 
 ### A named preview build
 
-When the user names a tag (`/install-musterdeck v1.0.39-wsl-preview`, or "install the WSL
+Ubuntu (WSL) support is in the regular releases since 1.0.107, so the newest release is what
+almost everyone wants; the `*-wsl-preview` pre-releases are old test builds. When the user
+names a tag (`/install-musterdeck v1.0.39-wsl-preview`, or "install the WSL
 preview"), install THAT release instead of the newest:
 
 ```bash
@@ -87,7 +89,7 @@ defaults read /Applications/MusterDeck.app/Contents/Info.plist CFBundleShortVers
 (Get-Item "$env:LOCALAPPDATA\Programs\MusterDeck\MusterDeck.exe").VersionInfo.ProductVersion
 ```
 
-If it already matches the latest release, say so and stop — unless the user asked for a
+If it already matches the latest release, say so and stop, unless the user asked for a
 reinstall. **Upgrading never touches the user's data**: sessions, saved configs and themes
 live in the data directory, not in the app bundle.
 
@@ -119,7 +121,7 @@ The two must match. If they do not, delete the file and download again; never in
 
 ---
 
-## 3a. macOS — install
+## 3a. macOS: install
 
 **Quit a running copy first.** Replacing the bundle under a live process is how you get a
 half-updated app.
@@ -154,7 +156,7 @@ Removing the quarantine attribute that the download added avoids that entirely.
 Use `-dr com.apple.quarantine`, not `xattr -cr`. `-cr` strips *every* extended attribute,
 which is only wanted when something is about to be re-signed. Nothing is re-signed here:
 the app inside the DMG already carries its own ad-hoc signature, and that signature is what
-makes notifications work — macOS keys an app in Notification Center by its code-signing
+makes notifications work: macOS keys an app in Notification Center by its code-signing
 identity. Confirm it survived the copy:
 
 ```bash
@@ -163,7 +165,7 @@ codesign -dv "/Applications/MusterDeck.app" 2>&1 | grep -E 'Identifier|Sealed'
 
 Expect `Identifier=com.musterdeck.app` and `Sealed Resources version=2`. If it says
 `Identifier=Electron`, the app will run but **every notification it posts will silently go
-nowhere** — that is a broken installer, not something to fix here; report it.
+nowhere**. That is a broken installer, not something to fix here; report it.
 
 ### Launch
 
@@ -183,9 +185,16 @@ On first launch macOS may ask for access to Documents, Desktop or Downloads. The
 it to read the project folders sessions run in; the request is expected, and the first
 launch can sit waiting on that dialog, so tell the user to look for it.
 
+After an UPDATE (not a first install), macOS may also ask once whether MusterDeck may use
+"MusterDeck Safe Storage" in the keychain. Each release carries a new ad-hoc signature, so
+macOS asks again for the item the previous build created (it holds saved SSH passwords and
+encrypted notes). Tell the user to click **Always Allow**; Deny only means MusterDeck asks
+for those passwords again. Since 1.0.120 a session that signs in with an SSH key never
+touches the keychain, so it cannot hang on this prompt.
+
 ---
 
-## 3b. Windows — install
+## 3b. Windows: install
 
 **Close a running copy first**, then run the installer:
 
@@ -230,8 +239,8 @@ and the hash and let them run the installer from Windows.
 ## 4. First launch matters
 
 Let the app start once before doing anything else. On boot it installs the skills it ships
-with into `~/.claude/skills/` — which is where the theme skill in the next step comes from,
-so **step 5 does not work until the app has run at least once** — and it creates the data
+with into `~/.claude/skills/`, which is where the theme skill in the next step comes from,
+so **step 5 does not work until the app has run at least once**, and it creates the data
 directory if this is a first install.
 
 (That is the right way round: the theme skill needs a data directory to write into and a
@@ -241,10 +250,24 @@ is the one that had to come from somewhere else.)
 If this is a brand-new install it opens a setup flow: where the user works, which Claude
 install to use, and which optional features to switch on. Leave that to them.
 
+On Windows 11 with Ubuntu in WSL, setup's **Find Claude** step offers to look in Ubuntu
+too (after showing every command it will run). What it may ask for, all on that screen:
+
+- **Not signed in** in Ubuntu: a **Sign in to Claude in Ubuntu** button runs Ubuntu's own
+  Claude login in a small terminal there (1.0.130). Finish it in the browser, type `/exit`,
+  and the row turns green.
+- **WSL is on NAT networking**: the **Switch** button sets mirrored networking, which
+  MusterDeck needs to see what Claude is doing in Ubuntu. It restarts WSL, so ask first if
+  they have work running in Ubuntu.
+- **The status line needs Node in Ubuntu**: optional. Ubuntu sessions work without it (with
+  a simpler status line); `sudo apt install nodejs` or nvm adds it.
+
+Help with any of these if asked; otherwise leave setup to them.
+
 ## 5. Offer the custom Crew themes
 
-MusterDeck ships with two Crew themes, Harbour and the Samurai Village. Others — the Jedi
-Enclave and the Galley Kitchen — are distributed separately because they carry someone
+MusterDeck ships with two Crew themes, Harbour and the Samurai Village. Others, the Jedi
+Enclave and the Galley Kitchen, are distributed separately because they carry someone
 else's IP or branding.
 
 Once the app has started, **offer to add them**, and if the user says yes, use the
@@ -264,5 +287,5 @@ If the user declines, say the offer stands whenever they want it, and finish.
 ## 6. Say what happened
 
 State the version installed, where it went, and whether themes were added. If anything was
-skipped — an Intel Mac, a missing asset for this platform, a declined theme step — say that
+skipped (an Intel Mac, a missing asset for this platform, a declined theme step), say that
 too rather than reporting a clean run.

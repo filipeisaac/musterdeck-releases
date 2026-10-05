@@ -104,7 +104,8 @@ mode and its own `claude`, `node`, `git` and `codex` (never a `/mnt/` copy), and
 Windows itself has Claude. Its last line is `machine.json`: keep `distro`,
 `inDistro.codex` and `windowsClaude` for later steps (`$distro = "<machine.distro>"`). A Windows build before 22621 or no
 distro: stop, zip (R14) and clean up. NAT networking or no Claude in Ubuntu: tell the person
-(most Ubuntu checks will fail), and ask whether to go on.
+(most Ubuntu checks will fail), and ask whether to go on. No `node` in Ubuntu: Ubuntu sessions
+still work (since 1.0.115 a plain-shell status line covers them), so go on and note it.
 
 ### R3. Install the build
 
@@ -683,7 +684,14 @@ the list below, with its yes, as for any run.
    List any `mcp-*.json` or `settings-*.json` that did NOT match, and leave them.
 6. The same in Ubuntu, by the same content rules: `~/.claude/settings-*.json`,
    `~/.claude/mcp-*.json`, plus `~/.claude/launch-*.sh`,
-   `~/.claude/conductor-ssh-statusline.js` and `~/.musterdeck`.
+   `~/.claude/conductor-ssh-statusline.js`, and the skill folders under `~/.claude/skills/`
+   that carry a `.ccc-bundled` file (MusterDeck installs its skills in Ubuntu at the first
+   Ubuntu Claude launch, even in a parity run, because Ubuntu's `~/.claude` is not the
+   throwaway folder). Then `~/.musterdeck`, **said separately**: it holds
+   `claude-config-backups/initial.tar`, the only copy of their Ubuntu Claude config from
+   before MusterDeck first wrote to it, plus pinned Claude versions, Codex launch files and
+   any account added in Ubuntu. Offer to keep the backup (move it to their home) before
+   removing the rest.
 7. The installer it downloaded: `MusterDeck-*.exe` in Downloads.
 8. If `%USERPROFILE%\.wslconfig` has a `.musterdeck-*.bak` beside it, MusterDeck changed
    it: show both and ask before restoring the backup.
