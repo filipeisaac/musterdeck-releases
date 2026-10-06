@@ -141,6 +141,12 @@ mdnode "$suite\list-sessions.mjs" --port $port
 
 `list-sessions` waits for the window and should say `0 session(s)`. If nothing answers,
 check no other MusterDeck is running and that port 9339 is free, then try another port.
+
+`Start-TestApp` starts the app from THIS shell, so it inherits this Claude session's
+environment, the signed-in account included (`CLAUDE_CODE_USER_EMAIL` and friends). From
+1.0.143 the app strips those before anything it spawns sees them. On an older build every
+`account-*` check in R12 fails with "already here" two seconds after the sign-in starts:
+record that as the build's fault, not the person's browser.
 Ask the person to leave the MusterDeck window open and not to click in it until R12 (it may
 sit behind other windows; it must not be minimised, or its screenshots come out blank).
 
@@ -281,6 +287,12 @@ exactly this wording):
 | `account-remove` | Remove refused while its session is open, then removed (Claude checks the folder) | a hand |
 | `codex-human` | a Codex turn in Ubuntu shows context and cost, resumes after a relaunch, and a Codex review from the Ubuntu Claude session | Codex in Ubuntu |
 | `wsl-shutdown` | `wsl --shutdown`: Disconnected, Restart, same conversation; usage panels do not start Ubuntu | **an explicit yes** |
+
+`toast`, when no notification appears: Windows stores, and never shows, the notifications of
+an app it does not list as installed. Check `Get-StartApps | Where-Object { $_.AppID -eq
+'com.musterdeck.app' }` (nothing listed: say so in the note, and that a sign-out and back in
+usually clears it), the app log's `[notify]` lines, and that Do not disturb is off. Builds
+before 1.0.144 posted under `electron.app.MusterDeck` and never showed one.
 
 `wsl-shutdown` stops everything running in WSL, Docker included: ask, explain that, and do
 it only on a clear yes. **Never** from inside WSL (it would end this conversation): then give
@@ -661,6 +673,17 @@ Read `findings.md` back once; the zip must exist before step 6 starts.
 
 Show the person this list, with the real paths, and ask for a yes before deleting anything.
 Their own Claude Code setup is not touched, except files MusterDeck itself created there.
+
+**Never follow a link while deleting.** A MusterDeck data folder (the real one AND the
+throwaway `$dataDir`) holds account profiles whose homes mirror the person's REAL home:
+every dot-folder of `%USERPROFILE%` (`.ssh`, `.vscode`, `.cursor`, ...) is a **junction**
+into the real one. A delete that walks into a junction deletes the person's own files.
+Windows PowerShell 5.1's `Remove-Item -Recurse` is such a delete: do not use it on these
+folders. Use `cmd /c rmdir /s /q "<folder>"` (removes a junction, never its target) or the
+Recycle Bin through the shell (`[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory`
+with `SendToRecycleBin`), and afterwards check the person's `%USERPROFILE%\.*` folders still
+hold what they held (seen on 2026-10-06: a .NET recursive delete stopped at a profile's
+`.android` junction with access denied, harmlessly).
 
 **Parity run first**: remove the throwaway data folder `$dataDir` (`%TEMP%\md-parity-*`)
 without asking (this run made it, and the app under test kept everything there), and check

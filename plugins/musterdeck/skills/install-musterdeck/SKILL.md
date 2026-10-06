@@ -215,6 +215,20 @@ clicks **More info → Run anyway**. Say this before they hit it rather than aft
 
 Installing over an existing copy upgrades in place and keeps the data directory.
 
+**Launch it through Explorer**, not as a child of this shell:
+
+```powershell
+Start-Process explorer.exe "$env:LOCALAPPDATA\Programs\MusterDeck\MusterDeck.exe"
+```
+
+You are running inside a Claude Code session, and a process started from here inherits that
+session's environment, including the signed-in account (`CLAUDE_CODE_USER_EMAIL`,
+`CLAUDE_CODE_ACCOUNT_UUID`, `CLAUDE_CODE_ORGANIZATION_UUID`) and the host's own channel.
+Before 1.0.143 MusterDeck passed those on, Claude Code wrote them into every new account
+profile, and **Add another account** was refused as the first account two seconds in.
+Started by Explorer, the app gets the user's own environment, as from the Start menu. 1.0.143
+and later strip them anyway; launching through Explorer keeps older builds right too.
+
 ## 3c. Windows, from inside WSL
 
 Claude Code may be running in Ubuntu on the Windows machine that should get MusterDeck.
@@ -272,8 +286,31 @@ the row again when it is done. So nothing has to be installed before MusterDeck 
 - What no button can fix (WSL not installed; Ubuntu unable to reach MusterDeck's folder for
   the status line) gets numbered steps and **Check again**.
 
-On Windows 11 with Ubuntu in WSL, the Ubuntu rows appear only after the step's **Look in
-Ubuntu too**, which shows every command it will run first.
+On Windows 11 with Ubuntu in WSL, the Ubuntu rows appear only after the step's **Check
+Ubuntu**, which shows every command it will run first.
+
+The **compatibility check** that follows offers **Update Claude Code** when a Claude Code is
+older than MusterDeck is validated against (1.0.145): Claude Code's own `claude update`, on
+this computer or in Ubuntu, shown in full before the button runs it, then Check again. No
+restart.
+
+**Notifications on Windows.** Setup's notifications page sends a test and says what Windows
+answered (1.0.144). Windows has no permission prompt; it decides by itself whether a
+notification is SHOWN, and it shows them only for an app it lists as installed. If nothing
+pops up:
+
+- Do not disturb must be off (Win+N), and MusterDeck switched on under Settings > System >
+  Notifications (the page has a button for that).
+- Windows must list MusterDeck as an app. Check:
+  ```powershell
+  Get-StartApps | Where-Object { $_.AppID -eq 'com.musterdeck.app' }
+  ```
+  Nothing listed means Windows has not taken in the Start-menu entry yet, and it stores
+  MusterDeck's notifications without showing any. Signing out and back in usually gets it to
+  read the Start menu again. A build before 1.0.144 posted under another ID (`electron.app.MusterDeck`)
+  and rewrote the shortcut to it; installing 1.0.144 or later puts the installer's ID back.
+- `app.log` in the data directory records each test: `[notify] test blocked: shown`, or
+  `failed` with Windows' reason.
 
 Help with any of these if asked; otherwise leave setup to them.
 
