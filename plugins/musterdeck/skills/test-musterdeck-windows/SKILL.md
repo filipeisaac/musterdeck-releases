@@ -1,6 +1,6 @@
 ---
 name: test-musterdeck-windows
-description: Run MusterDeck's WSL test on a Windows 11 machine with Ubuntu in WSL. By default the parity run - Claude installs the test build, starts it in a test mode against a throwaway data folder, drives Ubuntu and Windows sessions through the app itself and runs the whole automated suite (about 60 checks), then asks the person only for what needs eyes or would disrupt their machine - writes a findings report with screenshots and logs into one zip on the Desktop to send back, and removes every trace afterwards. Also runs the older phase 1b and spike passes when asked. Use when asked to test MusterDeck on Windows, run the WSL checks, the parity suite or the phase 1b test, run /test-musterdeck-windows, or "do the MusterDeck test Filipe asked for".
+description: Run MusterDeck's WSL test on a Windows 11 machine with Ubuntu in WSL. By default the parity run - Claude installs the test build, goes through setup's Set up page as a new user would (running its fixes with the person's OK; the sign-ins stay theirs), starts it in a test mode against a throwaway data folder, drives Ubuntu and Windows sessions through the app itself and runs the whole automated suite (about 60 checks), then asks the person only for what needs eyes or would disrupt their machine - writes a findings report with screenshots and logs into one zip on the Desktop to send back, and removes every trace afterwards. Also runs the older phase 1b and spike passes when asked. Use when asked to test MusterDeck on Windows, run the WSL checks, the parity suite or the phase 1b test, run /test-musterdeck-windows, or "do the MusterDeck test Filipe asked for".
 ---
 
 # Testing MusterDeck on Windows (the WSL test)
@@ -18,15 +18,15 @@ them read the procedure.
 
 | Run | Build (tag) | What it covers | Steps |
 |---|---|---|---|
-| `parity` | the tag Filipe named, else the newest release (see R3) | every feature of an Ubuntu session beside a Windows one, driven and checked by Claude through the app's test mode; a short list for the person at the end | 0, then R1 to R14, then 6 and 7 |
+| `parity` | the tag Filipe named, else the newest release (see R3) | a new user's first run through setup's Set up page (R3b), then every feature of an Ubuntu session beside a Windows one, driven and checked by Claude through the app's test mode; a short list for the person at the end | 0, then R1 to R3, R3b, R4 to R14, then 6 and 7 |
 | `phase-1b` | `v1.0.58-wsl-preview` (status bar `CLI v1.0.58`), unless Filipe named another | the whole Ubuntu experience by hand: setting Ubuntu up, Ubuntu Claude sessions, status, notifications, resume, drops, badges, `wsl --shutdown`, and a colour check | 0, 1, 2, then P1 to P11, then 5 to 7 |
 | `spike` | `v1.0.39-wsl-preview` (`CLI v1.0.39`) | the eight measurements taken before anything was built | 0, 1, 2, 3, 4, then 5 to 7 |
 
 If Filipe's message names a different tag, use his. Say which run this is in the first
 line of `findings.md`.
 
-**What it does, in order:** check the machine; install the build; run the checks of the
-chosen run; write `findings.md` with screenshots and logs and zip it on the Desktop;
+**What it does, in order:** check the machine; install the build; go through setup's Set up
+page as a new user (parity run); run the checks of the chosen run; write `findings.md` with screenshots and logs and zip it on the Desktop;
 remove MusterDeck and its data (after confirming); say where the zip is and to send it to
 Filipe.
 
@@ -125,6 +125,52 @@ Install it with the **`install-musterdeck`** skill, naming that tag (it verifies
 SHA-256). Do NOT let it launch the app for real use: if it opens MusterDeck, quit it
 (`taskkill /IM MusterDeck.exe`) before R4. Record the tag and
 `(Get-Item $mdExe).VersionInfo.ProductVersion`.
+
+### R3b. A new user's first run: setup's Set up page
+
+The parity run below starts past every first-run screen. This step goes through them first,
+as someone who just installed MusterDeck does, in a throwaway folder of its own: test mode
+leaves a folder whose `app-meta.json` already exists unseeded, so `{}` there shows every
+first-run screen while the person's real data is never opened.
+
+**Ask the person first, once**, which of setup's fixes may run for real (each is what a new
+user would press; none can be undone by this run):
+
+- `--install`: an install a row offers (Claude Code on this computer, Claude Code or Node in
+  Ubuntu) runs. Step 6 offers to remove what it installed.
+- `--update`: **Update Claude Code** runs when the compatibility check says this computer's
+  Claude (or Ubuntu's) is older than validated. It really updates their Claude Code;
+  nothing puts the old version back.
+- `--switch-networking`: the networking row's **Switch** changes `.wslconfig` for every distro
+  and Docker Desktop and restarts WSL, stopping everything running in it. Only on a clear yes,
+  and **never from inside WSL** (it ends this conversation).
+
+```powershell
+$onbDir = Join-Path $env:TEMP "md-onboarding-$stamp"
+$onbData = Join-Path $onbDir "data"; $onbWork = Join-Path $onbDir "work"
+New-Item -ItemType Directory -Force -Path (Join-Path $onbData "resources\CONFIG"), $onbWork | Out-Null
+Set-Content (Join-Path $onbData "resources\CONFIG\app-meta.json") '{}' -Encoding ascii
+$env:MUSTERDECK_TEST_CDP = "9341"; $env:MUSTERDECK_TEST_DATA_DIR = $onbData
+try { Start-Process -FilePath $mdExe } finally { Remove-Item Env:MUSTERDECK_TEST_CDP, Env:MUSTERDECK_TEST_DATA_DIR -ErrorAction SilentlyContinue }
+mdnode "$suite\onboarding.mjs" --port 9341 --out $out --workspace $onbWork <--install> <--update> <--switch-networking>
+Get-Process MusterDeck -ErrorAction SilentlyContinue | Stop-Process -Force    # only this instance runs (R3)
+```
+
+Run `onboarding.mjs` in the background and read its output as it goes: when a screen needs
+the person it prints `WAITING FOR THE PERSON: <what to do>` and waits (`--person-wait-min`,
+10 by default). Relay that line as it is: the sign-ins (Claude on this computer, Claude in
+Ubuntu) are always theirs, in their browser; Claude never signs in for them.
+
+It records, with a screenshot per screen (`onboarding-NN-*.png`): **Where do you work?** (the
+throwaway `work` folder, so the folder trust Claude records lands there, not on their home),
+**Claude CLI Setup** (the trust question answered by moving to its Yes option, then `/exit`; a
+folder already trusted shows **Claude is ready** instead), **Welcome**, **Find Claude** (this
+computer: installed, the version through Run it for me, signed in), **Check Ubuntu** and Run
+the check (every row as found), then each row that is not fine through its own fix, **where
+sessions run** as offered, **Compatibility** (with `--update`, Claude Code's own updater on the
+page, then Check again, which must end on "Everything will work as expected"), and finally that
+Next lands on the Account page. What `--install`, `--update` and `--switch-networking` were not
+given for is a SKIP with the command the page offered.
 
 ### R4. Start the app in test mode
 
@@ -723,6 +769,17 @@ the list below, with its yes, as for any run.
 7. The installer it downloaded: `MusterDeck-*.exe` in Downloads.
 8. If `%USERPROFILE%\.wslconfig` has a `.musterdeck-*.bak` beside it, MusterDeck changed
    it: show both and ask before restoring the backup.
+8b. What R3b's fixes installed, judged against R2's `machine.json` (what was there BEFORE):
+   R3b's own folder `$onbDir` (no question: this run made it; links unlinked, never followed);
+   Claude Code in the distro if `inDistro.claude` was null (`~/.local/bin/claude`,
+   `~/.local/share/claude`, `~/.claude`, `~/.claude.json`, `~/.cache/claude*`,
+   `~/.local/state/claude`, and `~/.local/bin` if it is then empty); Node if `inDistro.node`
+   was null and it came through nvm (`~/.nvm`, and the three nvm lines its installer added to
+   `~/.bashrc`, keeping a copy of `.bashrc` first); and networking if `networking` was `nat`
+   and is now `mirrored` (item 8, or `.wslconfig` itself when MusterDeck created it, then
+   `wsl --shutdown`, only on a yes and never from inside WSL). Each on its own yes. An update
+   of Claude Code (`--update`) cannot be undone: say so. The folder trust Claude recorded for
+   `$onbWork` stays in their `~/.claude.json` (their Claude's own record; harmless).
 9. Last, and only if they want: the musterdeck plugin itself
    (`/plugin uninstall musterdeck@musterdeck`). This skill lives in it, so say so first.
 
