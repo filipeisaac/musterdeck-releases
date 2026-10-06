@@ -35,7 +35,7 @@ import path from 'node:path'
 import { connectToApp, portFromArgs } from './lib/cdp.mjs'
 import { outDirFromArgs, step, record, failWith } from './lib/results.mjs'
 import { click, exists, setValue, waitFor, sleep, screenshot } from './lib/ui.mjs'
-import { TRUST, selectPrompt, describeOptions } from './lib/claude-tui.mjs'
+import { TRUST, CLAUDE_READY, selectPrompt, describeOptions } from './lib/claude-tui.mjs'
 
 const argv = process.argv.slice(2)
 const arg = (name, dflt = null) => (argv.includes(name) ? argv[argv.indexOf(name) + 1] : dflt)
@@ -44,7 +44,6 @@ const out = outDirFromArgs()
 const workspace = arg('--workspace')
 const personWaitMs = Number(arg('--person-wait-min', '10')) * 60_000
 const P = 'onboarding'
-const CLAUDE_READY = /\? for shortcuts|bypass permissions|accept edits|plan mode on|Try "|─{20,}[\s\S]{0,8}>/
 
 const page = await connectToApp(portFromArgs())
 
@@ -180,7 +179,7 @@ try {
     if (await has('onboarding-fix-native-sign-in')) {
       evidence.push('not signed in: Sign in now')
       await click(page, { css: '[data-testid="onboarding-fix-native-sign-in-run"]' })
-      await waitForPerson('sign in in the terminal on the Find Claude page (Open the sign-in page, paste the code back), type /exit, then Check again', async () => !(await has('onboarding-fix-native-sign-in')))
+      await signInVia('onboarding-fix-native-sign-in-terminal', 'on the Find Claude page (then type /exit)', async () => !(await has('onboarding-fix-native-sign-in')))
     }
     // Each row is its title on a line of its own, then its detail (the page's subtitle also
     // says "installed and you're signed in", so a row is matched as a whole line).
@@ -196,9 +195,19 @@ try {
   })
 
   // ── 5. Find Claude: Ubuntu ─────────────────────────────────────────────────────────────────
-  const rows = []
+  const ROW_IDS = ['claude', 'signed-in', 'networking', 'node', 'codex-signed-in', 'status-line', 'probe']
+  const readRows = async () => {
+    const rows = []
+    for (const id of ROW_IDS) {
+      const t = await testText(`onboarding-check-${id}`)
+      if (t) rows.push({ id, ok: /^✓/.test(t), text: t })
+    }
+    return rows
+  }
+  let ubuntu = false
   await step(out, `${P}.ubuntu`, 'Find Claude: Check Ubuntu, Run the check, every row', async () => {
     if (!(await has('onboarding-wsl-panel'))) return { status: 'SKIP', evidence: ['no Ubuntu panel on this machine'] }
+    ubuntu = true
     if (await has('onboarding-wsl-look')) {
       await click(page, { css: '[data-testid="onboarding-wsl-look"]' })
       await waitFor(async () => has('wsl-probe-confirm'), { timeoutMs: 15_000, what: 'the list of commands the check runs' })
@@ -206,25 +215,57 @@ try {
     }
     await waitFor(async () => has('onboarding-check-claude'), { timeoutMs: 240_000, intervalMs: 2000, what: 'the check rows' })
     await sleep(1500)
-    for (const id of ['claude', 'signed-in', 'networking', 'node', 'codex-signed-in', 'status-line', 'probe']) {
-      const t = await testText(`onboarding-check-${id}`)
-      if (t) rows.push({ id, ok: /^✓/.test(t), text: t })
-    }
+    const rows = await readRows()
     return { status: rows.every((r) => r.ok) ? 'PASS' : 'INFO', evidence: [...rows.map((r) => `${r.id} ${rowLine(r.text)}`), `screen: ${await shot('ubuntu')}`] }
   })
 
+  /**
+   * A sign-in in the terminal that just opened inside `scope`: Claude's own first questions (the
+   * text style, the login method) take their defaults, the link it prints is printed as
+   * `SIGN-IN LINK: <url>` for whoever relays it, and the rest is the person's. The code the
+   * browser shows is never typed here: pasting it IS signing in, and that is theirs.
+   */
+  async function signInVia(scope, where, done) {
+    let link = null
+    await waitFor(async () => {
+      if (await done()) return true
+      const t = await xtermText(scope)
+      const tail = t.split(/\r?\n/).slice(-30).join('\n')
+      if (/Choose the text style/.test(tail)) { await xtermType(scope, ''); await sleep(1500); return null }
+      if (/Select login method/.test(tail) && /❯\s*1\.\s*Claude account/.test(tail)) { await xtermType(scope, ''); await sleep(1500); return null }
+      const m = /https:\/\/\S*oauth\S*/.exec(t.replace(/\r?\n/g, ''))
+      if (m) { link = m[0]; return true }
+      return null
+    }, { timeoutMs: 120_000, intervalMs: 1500, what: 'the sign-in link' })
+    if (link && !(await done())) {
+      console.log(`SIGN-IN LINK: ${link}`)
+      await waitForPerson(`open the SIGN-IN LINK above, sign in, then paste the code the browser shows into the sign-in terminal ${where} (Ctrl+V or a right-click) and press Enter`, done)
+    }
+  }
+
   // ── 6. Each Ubuntu row that is not fine, through its own fix ───────────────────────────────
-  for (const r of rows.filter((x) => !x.ok)) {
+  // Scanned again after every fix: a fix can reveal a row (Claude installed, then its sign-in
+  // row appears), which a single scan missed on the first real run (2026-10-06).
+  const tried = new Set()
+  for (let pass = 0; ubuntu && pass < ROW_IDS.length; pass++) {
+    const r = (await readRows()).find((x) => !x.ok && !tried.has(x.id))
+    if (!r) break
+    tried.add(r.id)
     await step(out, `${P}.ubuntu.${r.id}`, `Ubuntu: fix "${r.id}" on the page`, async () => {
       const before = rowLine(r.text)
       const fixed = async () => /^✓/.test((await testText(`onboarding-check-${r.id}`)) ?? '')
       if (r.id === 'signed-in') {
         await click(page, { css: '[data-testid="onboarding-wsl-sign-in-open"]' })
-        await waitForPerson('sign in to Claude in Ubuntu in the terminal on the Find Claude page (Open the sign-in page, paste the code back), then type /exit', fixed)
+        await signInVia('onboarding-wsl-panel', 'on the Find Claude page', fixed)
       } else if (r.id === 'networking') {
         if (!flag('--switch-networking')) return { status: 'SKIP', evidence: [before, 'Switch restarts WSL: not run without --switch-networking (the person\'s yes)'] }
+        if (process.platform !== 'win32') return { status: 'SKIP', evidence: [before, 'not from inside WSL: restarting WSL would end this run'] }
+        // The flag IS the person's yes: confirm the card, then its restart question.
         await click(page, { within: '[data-testid="onboarding-check-networking"]', text: 'Switch', startsWith: true })
-        await waitForPerson('answer the Switch questions on the Find Claude page (it restarts WSL), then Check again', fixed)
+        await click(page, { text: 'Switch to mirrored', exact: true }, { timeoutMs: 15_000 })
+        await click(page, { text: 'Restart WSL now', exact: true }, { timeoutMs: 30_000 })
+        await waitFor(fixed, { timeoutMs: 180_000, intervalMs: 3000, what: 'mirrored networking after the restart' })
+          .catch(() => waitForPerson('answer the Switch questions on the Find Claude page (it restarts WSL), then Check again', fixed))
       } else {
         const run = `onboarding-fix-wsl-${r.id}-run`
         if (!(await has(run))) return { status: 'FAIL', evidence: [before, 'no fix button on this row'] }
@@ -254,9 +295,13 @@ try {
       evidence.push(`behind: ${await testText('onboarding-fix-native-update')}`)
       if (!flag('--update')) return { status: 'SKIP', evidence: [...evidence, 'Update Claude Code offered, not run without --update (it really updates this computer\'s Claude)'] }
       await click(page, { css: '[data-testid="onboarding-fix-native-update-run"]' })
-      // PowerShell never closes the terminal: wait for the updater's last word, then Check again.
-      await waitFor(async () => /up to date|Successfully updated|updated to|Current version/i.test(await xtermText('onboarding-fix-native-update-terminal')), { timeoutMs: 10 * 60_000, intervalMs: 3000, what: 'the updater to finish' })
-        .catch(() => waitForPerson('let Claude Code\'s updater finish in the terminal on the compatibility page', async () => /up to date|updated/i.test(await xtermText('onboarding-fix-native-update-terminal'))))
+      // PowerShell never closes the terminal: wait for the updater's LAST word, then Check again.
+      // Not "Current version", which it prints first: taking that for the end pressed Check
+      // again mid-update and read the old version (the first real run, 2026-10-06).
+      const FINISHED = /Successfully updated|is up to date|already (?:on the )?latest|Update failed|Failed to (?:update|install)/i
+      await waitFor(async () => FINISHED.test(await xtermText('onboarding-fix-native-update-terminal')), { timeoutMs: 10 * 60_000, intervalMs: 3000, what: 'the updater to finish' })
+        .catch(() => waitForPerson('let Claude Code\'s updater finish in the terminal on the compatibility page', async () => FINISHED.test(await xtermText('onboarding-fix-native-update-terminal'))))
+      await sleep(2000)
       evidence.push(`updater: ${(await xtermText('onboarding-fix-native-update-terminal')).split(/\r?\n/).filter(Boolean).slice(-3).join(' / ')}`)
       await click(page, { within: '[data-testid="onboarding-fix-native-update-terminal"]', text: 'Check again', exact: true })
       await waitFor(async () => /Everything will work as expected/.test(await text()), { timeoutMs: 60_000, what: 'the page to say Everything will work as expected' })

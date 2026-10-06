@@ -7,6 +7,15 @@
 /** Claude's folder trust question, in the wordings seen so far. */
 export const TRUST = /Do you trust the files|trust this folder|Yes, proceed|Is this a project you|Quick safety check/i
 
+/**
+ * Claude's prompt is up, waiting for input. Older versions print "? for shortcuts" and a
+ * `Try "..."` placeholder, and the footer names the permission mode. 2.1.292 (2026-10-06)
+ * prints neither once anything was typed: the prompt is `❯` right under a rule and the footer
+ * says "auto mode on", so every ready wait on it timed out. The prompt must come within a few
+ * characters of the rule, so a trust question's `❯ 1. Yes` further down is not taken for it.
+ */
+export const CLAUDE_READY = /\? for shortcuts|bypass permissions|accept edits|plan mode on|auto mode on|Try "|─{20,}[\s\S]{0,8}[>❯]/
+
 /** A line of the screen without a box's side bars and the padding around them. */
 const unbox = (line) => line.replace(/^[\s│|]*/, '').replace(/[\s│|]*$/, '')
 const CURSOR = /^(❯|›|>)\s+(?=\S)/

@@ -158,8 +158,15 @@ Get-Process MusterDeck -ErrorAction SilentlyContinue | Stop-Process -Force    # 
 
 Run `onboarding.mjs` in the background and read its output as it goes: when a screen needs
 the person it prints `WAITING FOR THE PERSON: <what to do>` and waits (`--person-wait-min`,
-10 by default). Relay that line as it is: the sign-ins (Claude on this computer, Claude in
-Ubuntu) are always theirs, in their browser; Claude never signs in for them.
+10 by default). Relay that line as it is. A sign-in (Claude on this computer, Claude in Ubuntu)
+is taken as far as its link: Claude's own first questions get their defaults and the driver
+prints `SIGN-IN LINK: <url>`; send the person that link. The code their browser shows then
+goes into the sign-in terminal in the MusterDeck window, **pasted by them**: pasting it is
+the sign-in, so never type it for them, even when they send it to you or are away (then
+carry on with what needs no sign-in and come back to it). With `--switch-networking` the
+driver answers the Switch card and its "Restart WSL now" itself (the flag is the yes). After
+each fix it scans the rows again, since a fix can reveal a row (Claude installed, then its
+sign-in).
 
 It records, with a screenshot per screen (`onboarding-NN-*.png`): **Where do you work?** (the
 throwaway `work` folder, so the folder trust Claude records lands there, not on their home),
@@ -205,9 +212,13 @@ mdnode "$suite\setup-environment.mjs" --port $port --out $out --distro $distro
 It answers the "Ubuntu found" prompt (or opens Settings > Environments), clicks Add Ubuntu
 and Run the check, and records what the probe found. Its last line names the
 `environmentId` (`wsl:<distro>`) and says whether Ubuntu's Claude is signed in. **Not
-signed in**: the person must do it once (a sign-in in the browser): ask them to open
-Settings > Environments in the test window and click **Sign in** under Ubuntu, finish it,
-and close that tab; then run setup-environment again.
+signed in**: the sign-in is the person's, once. Claude can take it to the link: open
+Settings > Environments (`app:openSettings` with tab `environments`), click **Sign in** under
+Ubuntu, read the new terminal (`__mdTest.terminals()` / `readTerminal`), accept Claude's text
+style and its login method 1 (Claude account with subscription) with Enter, and send the
+person the `https://...oauth...` link it prints. They sign in in their browser and paste the
+code it shows into that terminal in the MusterDeck window themselves (never Claude, even if
+they send the code). Then close that tab and run setup-environment again.
 
 ### R6. Fixtures
 

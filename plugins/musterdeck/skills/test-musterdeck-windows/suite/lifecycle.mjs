@@ -58,7 +58,7 @@ import {
   terminalText, typeInTerminal, pressTerminalKey, waitForTerminal, screenshot,
 } from './lib/ui.mjs'
 import { decodePng, countNear } from './lib/png.mjs'
-import { TRUST, selectPrompt, describeOptions, countAnswers, answersAfterPrompt } from './lib/claude-tui.mjs'
+import { TRUST, CLAUDE_READY, selectPrompt, describeOptions, countAnswers, answersAfterPrompt } from './lib/claude-tui.mjs'
 
 const argv = process.argv.slice(2)
 const arg = (name, dflt = null) => (argv.includes(name) ? argv[argv.indexOf(name) + 1] : dflt)
@@ -155,7 +155,6 @@ async function createSession({ label, shellOnly, partner }) {
   return s
 }
 
-const CLAUDE_READY = /\? for shortcuts|bypass permissions|accept edits|plan mode on|Try "|─{20,}[\s\S]{0,8}>/
 
 /**
  * Answer Claude's folder trust question with its "Yes" option, wherever that option is. Never
