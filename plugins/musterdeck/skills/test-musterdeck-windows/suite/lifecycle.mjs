@@ -30,6 +30,10 @@
  *   scheduled  "Schedule a message..." from the tab menu, due now: a `/rename` (a local command,
  *              no tokens) is typed in, and the label follows it
  *   partner    the Partner Terminal opens in the session's folder (`pwd`)
+ *   play       1.0.136: Claude is asked for a code block whose command prints a random number;
+ *              its Play button appears, a click runs it in the Terminal, and after "done" Claude
+ *              answers with the number, which only the note on that message could tell it
+ *              (two short turns; SKIP on an older build)
  *   rename     as above, for the Claude session
  *   restart    Restart on the status strip: a new terminal, the same conversation (the marker
  *              comes back from the transcript, the conversation id is unchanged)
@@ -569,6 +573,40 @@ if (phase === 'main') {
         } else {
           await click(page, { css: 'button[aria-label="Switch back to Claude"]' })
         }
+        return { evidence }
+      })
+
+      await run('play', 'Play on a command Claude wrote runs it in the Terminal, and "done" tells Claude what it printed', async () => {
+        // 1.0.136. A build without it has no `play` in its test API: SKIP, not FAIL.
+        if ((await page.evaluate('typeof window.__mdTest?.play')) !== 'function') return { status: 'SKIP', evidence: ['this build has no Play buttons (a build before 1.0.136)'] }
+        await activate(claude.id)
+        // A number nobody can guess: Claude can only answer it from what the terminal printed.
+        // Windows' own sessions run PowerShell; Ubuntu's (and a Mac's, when the suite runs there) a POSIX shell.
+        const [lang, command] = place !== 'ubuntu' && process.platform === 'win32'
+          ? ['powershell', 'Get-Random -Minimum 100000000 -Maximum 999999999']
+          : ['bash', 'od -An -N4 -tu4 /dev/urandom']
+        await typeInTerminal(page, claude.id, `Reply with only a ${lang} code block containing exactly this command and nothing else: ${command}`)
+        const commands = await waitFor(async () => {
+          const c = (await callTestApi(page, 'readings'))?.commands?.[claude.id]
+          return Array.isArray(c) && c.some((b) => b.text === command) ? c : null
+        }, { timeoutMs, intervalMs: 1000, what: 'the reply to carry the command' })
+        const evidence = [`the turn's commands: ${commands.map((b) => `${b.lang}: ${b.text}`).join('; ')}`]
+        await waitFor(async () => (await exists(page, { css: '[data-testid="command-play"]' })) || null, { timeoutMs: 30_000, what: 'the Play button beside the command' })
+        const shot = path.join(out, `play-${place}.png`)
+        fs.writeFileSync(shot, await screenshot(page))
+        evidence.push(`screenshot ${path.basename(shot)}`)
+        await click(page, { css: '[data-testid="command-play"]' })
+        const pid = `${claude.id}-partner`
+        const printed = await waitFor(async () => {
+          const m = (await terminalText(page, pid, 40)).match(/^\s*(\d{6,})\s*$/m)
+          return m ? m[1] : null
+        }, { timeoutMs: 60_000, intervalMs: 1000, what: 'the Terminal to print the number' })
+        evidence.push(`Play ran it in the Terminal, which printed ${printed}`)
+        // The note on this message is the only way Claude can know the number.
+        await click(page, { css: `[data-terminal-id="${claude.id}"]` }).catch(() => {})
+        await turn(claude.id, 'done. What number did the terminal print? Reply with only the number.', printed)
+        evidence.push(`asked after "done", Claude replied ${printed}`)
+        if (await exists(page, { css: 'button[aria-label="Hide Terminal"]' })) await click(page, { css: 'button[aria-label="Hide Terminal"]' })
         return { evidence }
       })
 

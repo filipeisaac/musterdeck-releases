@@ -45,6 +45,11 @@ export const HUMAN = [
     look: 'A terminal in the session\'s Ubuntu folder slides up over the bottom third, Claude stays visible above it, the edge resizes it, Esc puts the cursor back in Claude, and reopening shows the same terminal with its earlier output.',
   },
   {
+    id: 'play-error', when: 'always', title: 'Play on a command that fails, then "I get an error" (1.0.136)',
+    do: 'On the Ubuntu Claude session, ask Claude: "Give me a bash command that lists a folder called nothing-here". Beside its command, click Copy and paste it into Notepad; then click Play. Go back to Claude and write only: I get an error',
+    look: 'A small Play and Copy pill sits just after the command. Copy put the command in Notepad. Play rolled the Terminal up and ran it there. After "I get an error", Claude names the error the Terminal printed (No such file or directory) without you pasting anything.',
+  },
+  {
     id: 'account-add', when: 'always', title: 'Add a second account in Ubuntu (sign-in in the browser)',
     do: 'Settings > Accounts > "Add an account in Ubuntu". In the Ubuntu tab that opens, sign in with a DIFFERENT account than Ubuntu already uses (or the same email in another organisation). Skip this and the account items below if there is no second account.',
     look: 'The account appears in the Ubuntu section and the tab is labelled with its email. Claude then checks its folder with accounts.mjs.',

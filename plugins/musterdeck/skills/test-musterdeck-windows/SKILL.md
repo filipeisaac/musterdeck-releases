@@ -189,9 +189,12 @@ rolls up from the bottom under Claude at about 30% of the pane; a message schedu
 ahead putting the session On watch on the deck AND on the Crew, where its figure must stand
 at its building wearing the clock badge (`crew-watch-<place>.png`; the clock never drew
 before 1.0.124), then cancelled; this also visits the Crew before the archive below, which
-lost the session before 1.0.110;
+lost the session before 1.0.110; on 1.0.136 and later, Play: Claude is asked for a code block
+whose command prints a random number, its Play button is clicked, the Terminal prints the
+number, and after "done" Claude answers with it, which only the note on that message can tell
+it (`play-<place>.png`);
 Rename from the sidebar; Restart (same conversation); Archive and Restore (same
-conversation). It spends three or four short turns on the Ubuntu account in total (with R11).
+conversation). It spends five or six short turns on the Ubuntu account in total (with R11).
 
 ### R8. The same on a Windows session (the regression run)
 
@@ -200,7 +203,8 @@ mdnode "$suite\lifecycle.mjs" --port $port --out $out --place native --folder "<
 ```
 
 The same steps on a Windows session in the same app, so nothing that works for Windows
-broke on the way. Without Claude on Windows, the shell half only.
+broke on the way (Play runs a PowerShell `Get-Random` there). Without Claude on Windows, the
+shell half only.
 
 ### R9. Every check in the suite
 
@@ -267,6 +271,7 @@ exactly this wording):
 | `crew` | the Crew shows each md-suite session, the Ubuntu card shows the marker | eyes |
 | `crew-roam` | an idle bot dragged to another zone stays there; one dropped off every zone walks to the nearest | a hand |
 | `drawer` | the Terminal button rolls a terminal up under Claude, resizes, Esc returns to Claude, reopening keeps it | a hand |
+| `play-error` | the Play and Copy pill beside a command Claude wrote; Copy, then Play runs it in the Terminal, and "I get an error" is enough for Claude to name it (1.0.136) | a hand |
 | `account-add` | Settings > Accounts > Add an account in Ubuntu, sign in with a second account | a sign-in in the browser |
 | `account-same` | signing in with the account Ubuntu already uses is refused | a sign-in |
 | `account-abandon` | closing the sign-in tab early leaves nothing (Claude checks `~/.musterdeck/profiles`) | a hand |

@@ -250,17 +250,30 @@ is the one that had to come from somewhere else.)
 If this is a brand-new install it opens a setup flow: where the user works, which Claude
 install to use, and which optional features to switch on. Leave that to them.
 
-On Windows 11 with Ubuntu in WSL, setup's **Find Claude** step offers to look in Ubuntu
-too (after showing every command it will run). What it may ask for, all on that screen:
+Its **Find Claude** step fixes what it finds on the same screen (1.0.134): each fix shows its
+command in full beside the button that runs it, runs it in a small terminal there, and checks
+the row again when it is done. So nothing has to be installed before MusterDeck but the app:
 
-- **Not signed in** in Ubuntu: a **Sign in to Claude in Ubuntu** button runs Ubuntu's own
-  Claude login in a small terminal there (1.0.130). Finish it in the browser, type `/exit`,
-  and the row turns green.
+- **Claude Code missing** (on this computer, or in Ubuntu): **Install it for me** runs Claude
+  Code's own installer. On Windows that is PowerShell; press **Check again** when it says it
+  is installed. No restart is needed.
+- **Not signed in**: **Sign in now** (this computer) or **Sign in to Claude in Ubuntu** runs
+  Claude's own login there. Its sign-in link gets **Open the sign-in page** and **Copy link**
+  buttons, and the code from the browser pastes back with Ctrl+V or a right-click. When it
+  says you are signed in, type `/exit`.
+- **The status line needs Node in Ubuntu**: optional (Ubuntu sessions work without it).
+  **Install Node for me** installs it with nvm, no password needed.
+- **Codex not signed in, in Ubuntu**: **Sign in to Codex** runs `codex login` there.
+- **Ubuntu not answering**: **Open Ubuntu here** starts it on the screen, so its first-run
+  questions (create a user) can be answered there.
 - **WSL is on NAT networking**: the **Switch** button sets mirrored networking, which
   MusterDeck needs to see what Claude is doing in Ubuntu. It restarts WSL, so ask first if
   they have work running in Ubuntu.
-- **The status line needs Node in Ubuntu**: optional. Ubuntu sessions work without it (with
-  a simpler status line); `sudo apt install nodejs` or nvm adds it.
+- What no button can fix (WSL not installed; Ubuntu unable to reach MusterDeck's folder for
+  the status line) gets numbered steps and **Check again**.
+
+On Windows 11 with Ubuntu in WSL, the Ubuntu rows appear only after the step's **Look in
+Ubuntu too**, which shows every command it will run first.
 
 Help with any of these if asked; otherwise leave setup to them.
 
