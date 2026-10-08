@@ -299,14 +299,20 @@ Read each back. The Chat one should show UBUNTU and WINDOWS badges on the tabs a
 
 ```powershell
 mdnode "$suite\quit-app.mjs" --port $port --out $out
+mdnode "$suite\update-gate.mjs" --prepare --data $dataDir --out $out
 Start-TestApp
+mdnode "$suite\update-gate.mjs" --check --port $port --out $out
 mdnode "$suite\lifecycle.mjs" --port $port --out $out --place ubuntu --folder <distro.repo> --phase resume
 mdnode "$suite\lifecycle.mjs" --port $port --out $out --place native --folder "<host.repo>" --phase resume
 ```
 
 `quit-app` closes the window and answers the close dialog with Save Sessions, as a person
-would. After the restart the sessions must be back with their names, and each Claude
-session, asked for the marker word, must answer it from the SAME conversation.
+would. `update-gate --prepare` makes the throwaway folder look set up by an older build, so
+this restart is also an UPDATE: it must open on "Resume previous sessions?" (answered Resume)
+or the sessions, never on "Where do you work?" (builds before 1.0.154 re-ran first-run setup
+on every update for anyone with no saved configs). After the restart the sessions must be
+back with their names, a name chosen in the sidebar included, and each Claude session, asked
+for the marker word, must answer it from the SAME conversation.
 
 ### R12. The human checks
 
@@ -330,7 +336,7 @@ exactly this wording):
 | `toast` | a Windows notification from an Ubuntu session's permission request, clicked | eyes |
 | `cloud-title` | the renamed Ubuntu session's name on claude.ai or the phone | another device or a browser |
 | `explorer-drag` | a real drag of `drop me.txt` from Explorer onto the Ubuntu shell | a hand |
-| `vscode` | Ctrl+click `notes.md` in the Ubuntu Partner Terminal opens VS Code in WSL | VS Code installed |
+| `vscode` | Ctrl+click `notes.md` in the Ubuntu Partner Terminal opens VS Code in WSL | VS Code installed, and Windows opening `.md` with it |
 | `crew` | the Crew shows each md-suite session, the Ubuntu card shows the marker | eyes |
 | `crew-roam` | an idle bot dragged to another zone stays there; one dropped off every zone walks to the nearest | a hand |
 | `drawer` | the Terminal button rolls a terminal up under Claude, resizes, Esc returns to Claude, reopening keeps it | a hand |
@@ -343,7 +349,7 @@ exactly this wording):
 | `account-default` | the default account pre-selects for Ubuntu only; Insights under the added account | a hand |
 | `account-remove` | Remove refused while its session is open, then removed (Claude checks the folder) | a hand |
 | `codex-human` | a Codex turn in Ubuntu shows context and cost, resumes after a relaunch, and a Codex review from the Ubuntu Claude session | Codex in Ubuntu |
-| `wsl-shutdown` | `wsl --shutdown`: Disconnected, Restart, same conversation; usage panels do not start Ubuntu | **an explicit yes** |
+| `wsl-shutdown` | `wsl --shutdown`: the Ubuntu tabs end as a crashed session does (`[Process exited with code 1]`, Restart), Restart gives the same conversation; usage panels do not start Ubuntu | **an explicit yes** |
 
 `toast`, when no notification appears: Windows stores, and never shows, the notifications of
 an app it does not list as installed. Check `Get-StartApps | Where-Object { $_.AppID -eq
@@ -355,6 +361,21 @@ before 1.0.144 posted under `electron.app.MusterDeck` and never showed one.
 it only on a clear yes. **Never** from inside WSL (it would end this conversation): then give
 the person the steps to do after the zip exists, and ask them to add what they saw to their
 reply to Filipe. After it, the app may need Restart on each Ubuntu tab; record what happened.
+There is no "Disconnected" label: the tab shows what a crashed local session shows. And
+`wsl -l -v` keeps saying Running for about 12 s after the shutdown; read it after that, or it
+looks as if something started Ubuntu again.
+
+The `account-*` sign-ins: send the link only when the person is there to use it. The app gives
+up on a pending account after **20 minutes** and, since 1.0.156, stops that tab's Claude (before
+that, Claude in the abandoned tab still took a code hours later and left a login nothing
+listed: 2026-10-07); then send a fresh link from a new Add. With
+mirrored networking the browser may hand the login straight back, with no code to paste. For
+a second account on the SAME email (a Team and a Personal plan), the person picks the other
+organisation on claude.ai's authorize page; the browser remembers the last one picked.
+
+`vscode`: a file opens in VS Code's Remote WSL only when Windows itself opens that extension
+with VS Code (or Insiders, or Cursor). With `.md` unassociated, Windows shows its own "Select
+an app" picker: close it with Esc, choose nothing, and SKIP with what the picker offered.
 
 ### R13. Logs
 
@@ -755,8 +776,10 @@ the list below, with its yes, as for any run.
    `%LOCALAPPDATA%\MusterDeck` (a dev build's data, if any), Electron's own folder
    `%APPDATA%\musterdeck`, and the updater's download cache
    `%LOCALAPPDATA%\musterdeck-updater` (it can hold hundreds of MB of installers).
-4. Its registry keys: `HKCU\Software\Claude Command Center` and the older
-   `HKCU\Software\Claude Conductor`.
+4. Its registry keys: `HKCU\Software\Claude Command Center`, the older
+   `HKCU\Software\Claude Conductor`, and `HKCU\Software\MusterDeck`, which the installer
+   writes and its uninstaller leaves behind (2026-10-07). Delete them through .NET
+   (`[Microsoft.Win32.Registry]::CurrentUser.DeleteSubKeyTree`).
 5. Files it wrote into the Windows Claude folder, **matched by content, not only by name**
    (Claude Code keeps files with the same kind of names there, e.g. its own
    `mcp-needs-auth-cache.json`, which must stay):

@@ -53,7 +53,18 @@ try {
     process.exit(1)
   }
   const known = new Set(before.runs.map((r) => r.id))
-  const started = await page.evaluate(`window.electronAPI.insights.run(${JSON.stringify({ environmentId })}).then((id) => ({ id }), (e) => ({ error: String(e && e.message || e) }))`)
+  // Started, not awaited: `insights.run` may answer only once Claude is up in the distro, longer
+  // than one page call may take (15 s; it timed out there on the 2026-10-06 Windows run while the
+  // run went on fine). Its id is the answer, or the new run in the catalogue, whichever is first.
+  await page.evaluate(`(window.__mdInsightsRun = window.electronAPI.insights.run(${JSON.stringify({ environmentId })}).then((id) => ({ id }), (e) => ({ error: String(e && e.message || e) })), true)`)
+  let started = null
+  for (const until = Date.now() + 120_000; !started && Date.now() < until;) {
+    started = await page.evaluate('Promise.race([window.__mdInsightsRun, new Promise((r) => setTimeout(() => r(null), 1000))])')
+    if (!started) {
+      const fresh = ((await callTestApi(page, 'insights'))?.runs ?? []).find((r) => !known.has(r.id) && r.environmentId === environmentId)
+      if (fresh) started = { id: fresh.id }
+    }
+  }
   if (!started?.id) {
     page.close()
     console.error(`FAIL insights: the run did not start in ${environmentId}: ${started?.error ?? 'no answer'}`)

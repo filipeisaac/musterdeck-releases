@@ -40,4 +40,4 @@ export const CHECKS = [
  * run by the skill directly rather than by run-suite. Listed so the unit test can tell an
  * unlisted check from a driver.
  */
-export const DRIVERS = ['preflight.mjs', 'onboarding.mjs', 'setup-environment.mjs', 'fixtures.mjs', 'lifecycle.mjs', 'run-suite.mjs', 'quit-app.mjs', 'report.mjs', 'screenshot.mjs', 'type.mjs']
+export const DRIVERS = ['preflight.mjs', 'onboarding.mjs', 'setup-environment.mjs', 'fixtures.mjs', 'lifecycle.mjs', 'run-suite.mjs', 'quit-app.mjs', 'update-gate.mjs', 'report.mjs', 'screenshot.mjs', 'type.mjs']

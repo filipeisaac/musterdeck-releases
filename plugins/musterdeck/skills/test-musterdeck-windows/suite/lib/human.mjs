@@ -27,7 +27,7 @@ export const HUMAN = [
   {
     id: 'vscode', when: 'vscode', title: 'Ctrl+click opens VS Code in WSL',
     do: 'In the Ubuntu Claude session\'s Partner Terminal, Claude types ls. Ctrl+click notes.md.',
-    look: 'VS Code opens notes.md with "WSL: Ubuntu" in its bottom left corner. Close VS Code afterwards.',
+    look: 'VS Code opens notes.md with "WSL: Ubuntu" in its bottom left corner. Close VS Code afterwards. Only when Windows opens .md files with VS Code: with no app for .md, Windows shows its own picker instead (close it, choose nothing).',
   },
   {
     id: 'crew', when: 'always', title: 'The Crew shows the Ubuntu sessions',
@@ -62,22 +62,22 @@ export const HUMAN = [
   {
     id: 'account-abandon', when: 'always', title: 'Closing a sign-in tab early leaves nothing behind',
     do: 'Add an account in Ubuntu once more, and close the sign-in tab before signing in.',
-    look: 'Nothing new is left in the list. Claude checks that no new folder is left under ~/.musterdeck/profiles in Ubuntu.',
+    look: 'Nothing new is left in the list. Claude checks that no new folder is left under ~/.musterdeck/profiles in Ubuntu, that no Claude is still running there with that profile (pgrep -af claude), and app.log says "stopped N terminal(s) under <id>" (1.0.156: a sign-in given up on used to leave its Claude at the login prompt).',
   },
   {
     id: 'account-session', when: 'always', title: 'A session on the added account, and Switch',
     do: 'New Session, place Ubuntu: the account picker lists only Ubuntu accounts; pick the added one and Create. Then, on the status line account menu, Switch to the other Ubuntu account, and back.',
-    look: 'The picker and the menu list only Ubuntu accounts. The chip and `claude /status` agree on the account; after each Switch the SAME conversation continues. Claude then re-runs logs, tokenomics, skills and accounts for this session.',
+    look: 'The picker and the menu list only Ubuntu accounts, each with its organisation. The chip and `claude /status` agree on the account; after each Switch the SAME conversation continues, and a question typed right after the Switch is SENT by Enter (it once stayed in the input as new lines, 2026-10-07). Claude then re-runs logs, tokenomics, skills and accounts for this session.',
   },
   {
     id: 'account-usage', when: 'always', title: 'Account usage and the Limits card',
-    do: 'Open Account usage (sidebar Tools) and Tokenomics. On the added Ubuntu account in the usage overview, click Sign in (re-auth) and finish it.',
-    look: 'Ubuntu accounts carry an UBUNTU tag with real percentages; the row refreshes after signing in.',
+    do: 'Open Account usage (sidebar Tools) and Tokenomics. On the added Ubuntu account in the usage overview, click Sign in (re-auth) and finish it, if it offers one (only an expired sign-in does).',
+    look: 'Ubuntu accounts carry an UBUNTU tag with real percentages, and each row names its organisation (two plans on one email are told apart, with different dots), in the Limits card too. The Windows row says Updated, not "couldn\'t refresh" (if it does, copy the [account-usage] ... usage not refreshed line from app.log). The row refreshes after a re-auth.',
   },
   {
     id: 'account-default', when: 'always', title: 'Default account and Insights per account',
     do: 'Tick "default for new sessions" on the added Ubuntu account, open New Session (Ubuntu, then Windows). Then Insights: choose the added Ubuntu account and run it (Claude says first that it spends tokens).',
-    look: 'The default is pre-selected for Ubuntu sessions only. The Insights run says it ran under that account.',
+    look: 'The default is pre-selected for Ubuntu sessions only. On Insights, choosing Ubuntu shows an account picker listing both Ubuntu accounts by organisation with the default pre-selected; the run says it ran under that account (the catalogue run carries its profileId, and its report comes from ~/.musterdeck/profiles/<id>/.claude/usage-data, not ~/.claude/usage-data).',
   },
   {
     id: 'account-remove', when: 'always', title: 'Remove the added Ubuntu account',
@@ -92,6 +92,6 @@ export const HUMAN = [
   {
     id: 'wsl-shutdown', when: 'consent', title: 'wsl --shutdown with sessions open (disruptive)',
     do: 'Only with a clear yes: it stops EVERYTHING running in WSL, Docker included. Claude runs wsl --shutdown from PowerShell and watches the Ubuntu Claude tab.',
-    look: 'Within seconds the tab says Disconnected with a Restart button. Restart: "Starting Ubuntu..." then the SAME conversation (asked, it answers the marker word). Usage panels show the last figures or "Ubuntu is not running" and do not start Ubuntu.',
+    look: 'Within seconds the tab ends as a crashed session does: [Process exited with code 1], and Restart on the status line. Restart (with "Starting Ubuntu..." if Ubuntu has stopped by then) brings back the SAME conversation (asked, it answers the marker word). Usage panels show the last figures or "Ubuntu is not running" and do not start Ubuntu.',
   },
 ]

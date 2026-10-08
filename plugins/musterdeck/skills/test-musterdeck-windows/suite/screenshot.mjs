@@ -23,7 +23,15 @@ const page = await connectToApp(portFromArgs())
 try {
   const view = arg('--view')
   if (view) {
-    await click(page, { css: `button[aria-label="${view}"]` })
+    // A rail item, or the same name in the rail's Tools flyout (Tokenomics, Logs, Memory and
+    // Insights live there): pages.mjs's rule. A rail-only click failed on Tokenomics (2026-10-06).
+    const direct = { css: `button[aria-label="${view}"]` }
+    if (await exists(page, direct)) await click(page, direct)
+    else {
+      await click(page, { css: 'button[aria-label="Tools"]' })
+      await sleep(300)
+      await click(page, { css: '[role="menu"] [role="menuitem"]', text: view, exact: true })
+    }
     await sleep(view === 'Crew' ? 6000 : 1200)
   }
   const session = arg('--session')

@@ -273,8 +273,14 @@ the row again when it is done. So nothing has to be installed before MusterDeck 
   is installed. No restart is needed.
 - **Not signed in**: **Sign in now** (this computer) or **Sign in to Claude in Ubuntu** runs
   Claude's own login there. Its sign-in link gets **Open the sign-in page** and **Copy link**
-  buttons, and the code from the browser pastes back with Ctrl+V or a right-click. When it
-  says you are signed in, type `/exit`.
+  buttons, and the code from the browser pastes back with Ctrl+V or a right-click. On this
+  computer it runs `claude auth login` and closes by itself once signed in (1.0.154); in
+  Ubuntu, type `/exit` when it says you are signed in. Since 1.0.154 the row asks Claude itself
+  (`claude auth status`), so an expired sign-in shows as "Not signed in" even when Claude's
+  config still names the account; a row that says it couldn't check is not a sign-in.
+- **After updating MusterDeck**, it opens on your sessions ("Resume previous sessions?"), not
+  on setup's "Where do you work?" (builds before 1.0.154 sent Windows users back through
+  first-run setup on every update).
 - **The status line needs Node in Ubuntu**: optional (Ubuntu sessions work without it).
   **Install Node for me** installs it with nvm, no password needed.
 - **Codex not signed in, in Ubuntu**: **Sign in to Codex** runs `codex login` there.

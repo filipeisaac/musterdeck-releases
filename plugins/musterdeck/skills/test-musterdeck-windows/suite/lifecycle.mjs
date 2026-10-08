@@ -58,7 +58,7 @@ import {
   terminalText, typeInTerminal, pressTerminalKey, waitForTerminal, screenshot,
 } from './lib/ui.mjs'
 import { decodePng, countNear } from './lib/png.mjs'
-import { TRUST, CLAUDE_READY, selectPrompt, describeOptions, countAnswers, answersAfterPrompt } from './lib/claude-tui.mjs'
+import { TRUST, CLAUDE_READY, offerOnScreen, selectPrompt, describeOptions, countAnswers, answersAfterPrompt } from './lib/claude-tui.mjs'
 
 const argv = process.argv.slice(2)
 const arg = (name, dflt = null) => (argv.includes(name) ? argv[argv.indexOf(name) + 1] : dflt)
@@ -163,33 +163,63 @@ async function createSession({ label, shellOnly, partner }) {
  * checks the cursor is there, and only then presses Enter. Answers the options as seen.
  */
 async function answerTrust(ptyId) {
+  return answerOption(ptyId, 'the trust question', (sp) => sp.yes, 'Yes')
+}
+
+/** Move the cursor of the select prompt on screen onto the option `pick` names, check, Enter. */
+async function answerOption(ptyId, what, pick, optionName) {
   for (let i = 0; i < 8; i++) {
     const sp = selectPrompt(await terminalText(page, ptyId, 60))
-    if (!sp) throw new Error('the trust question shows no numbered options yet')
-    if (!sp.yes) throw new Error(`the trust question has no Yes option (${describeOptions(sp)})`)
-    if (!sp.selected) throw new Error(`cannot tell which trust option is selected (${describeOptions(sp)})`)
-    if (sp.selected.n === sp.yes.n) {
+    if (!sp) throw new Error(`${what} shows no options yet`)
+    const want = pick(sp)
+    if (!want) throw new Error(`${what} has no ${optionName} option (${describeOptions(sp)})`)
+    if (!sp.selected) throw new Error(`cannot tell which option of ${what} is selected (${describeOptions(sp)})`)
+    if (sp.selected.n === want.n) {
       await typeInTerminal(page, ptyId, '', { enter: true })
       return sp
     }
-    await pressTerminalKey(page, ptyId, sp.yes.n > sp.selected.n ? 'ArrowDown' : 'ArrowUp')
+    await pressTerminalKey(page, ptyId, want.n > sp.selected.n ? 'ArrowDown' : 'ArrowUp')
     await sleep(400)
   }
-  throw new Error('the cursor would not move onto the Yes option of the trust question')
+  throw new Error(`the cursor would not move onto the ${optionName} option of ${what}`)
 }
 
-/** Wait for Claude's prompt in a terminal; answers a folder trust question Yes if one shows. */
+/**
+ * Wait for Claude's prompt in a terminal; answers a folder trust question Yes if one shows, and
+ * declines Claude's own offers (`OFFERS`): accepting one would change the person's settings.
+ */
 async function waitClaudeReady(ptyId) {
   let trusted = null
+  const declined = []
   return waitFor(async () => {
     const t = await terminalText(page, ptyId)
     const tail = t.split(/\r?\n/).slice(-40).join('\n')
+    const offer = offerOnScreen(t)
+    if (offer && !declined.includes(offer.name)) {
+      await answerOption(ptyId, `the offer of ${offer.name}`, (sp) => sp.options.find((o) => offer.decline.test(o.text)), 'decline')
+      declined.push(offer.name)
+      return null
+    }
     if (!trusted && TRUST.test(tail) && !CLAUDE_READY.test(tail)) {
       trusted = await answerTrust(ptyId)
       return null
     }
-    return CLAUDE_READY.test(t) ? { text: t, trusted } : null
+    return CLAUDE_READY.test(t) && !offerOnScreen(t) ? { text: t, trusted, declined } : null
   }, { timeoutMs, intervalMs: 1000, what: `Claude's prompt in ${ptyId}` })
+}
+
+/**
+ * A name chosen in the sidebar is still the session's name a while after `what` (two reading
+ * polls, 5 s each, so an older transcript title would have had its chance to come back).
+ * The 2026-10-06 Windows run: both Claude sessions took their older /rename title back right
+ * after Restart, and these steps passed because they only checked the conversation.
+ */
+async function labelSurvives(id, label, what, evidence) {
+  if (!label) return
+  await sleep(11_000)
+  const now = (await sessionById(id))?.label
+  evidence.push(`label after ${what}: "${now}"`)
+  if (now !== label) throw failWith(`the name chosen in the sidebar did not survive ${what}`, [...evidence, `expected "${label}"`])
 }
 
 /** The conversation a Claude session is on: the reading's uuid, else its resume pointer. */
@@ -506,7 +536,7 @@ if (phase === 'main') {
       saveState()
       await activate(claude.id)
       const r = await waitClaudeReady(claude.id)
-      return { evidence: [`session ${claude.id} host ${claude.host}${claude.environmentId ? ` ${claude.environmentId}` : ''}`, r.trusted ? `answered the folder trust question with ${r.trusted.yes.n}. ${r.trusted.yes.text} (options: ${describeOptions(r.trusted)})` : 'no trust question'] }
+      return { evidence: [`session ${claude.id} host ${claude.host}${claude.environmentId ? ` ${claude.environmentId}` : ''}`, r.trusted ? `answered the folder trust question with ${r.trusted.yes.n}. ${r.trusted.yes.text} (options: ${describeOptions(r.trusted)})` : 'no trust question', ...r.declined.map((d) => `declined Claude's offer of ${d} (Not now: it would change the person's settings)`)] }
     })
 
     if (claude) {
@@ -656,7 +686,15 @@ if (phase === 'main') {
         await renameViaSidebar(claude.id, label)
         state.claude.label = label
         saveState()
-        return { evidence: [`label is now "${label}" (the cloud title on claude.ai is on the human list)`] }
+        const evidence = [`label is now "${label}" (the cloud title on claude.ai is on the human list)`]
+        // 1.0.153: a sidebar rename is sent to Claude as /rename (until then it never was, and the
+        // transcript's older title took the label back). Claude says so when it applies it.
+        const esc = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        await waitForTerminal(page, claude.id, new RegExp(`Session renamed to:\\s*${esc}`), { timeoutMs: 90_000, what: `Claude to apply /rename ${label}` })
+          .then(() => evidence.push('Claude applied it: "Session renamed to: ' + label + '"'))
+          .catch(() => { throw failWith('the sidebar name never reached Claude (no "Session renamed to" within 90 s)', evidence) })
+        await labelSurvives(claude.id, label, 'the rename', evidence)
+        return { evidence }
       })
 
       await run('restart', 'Restart: a new terminal, the same conversation', async () => {
@@ -670,6 +708,7 @@ if (phase === 'main') {
         const conv = await conversationOf(claude.id)
         const evidence = [`remounted (createdAt ${before.createdAt} -> ${(await sessionById(claude.id)).createdAt})`, `the reply ${state.marker} is back`, `conversation ${conv ?? 'unknown'} (was ${state.conversation ?? 'unknown'})`]
         if (state.conversation && conv && conv !== state.conversation) throw failWith('a different conversation after Restart', evidence)
+        await labelSurvives(claude.id, state.claude.label, 'Restart', evidence)
         return { evidence }
       })
 
@@ -680,6 +719,7 @@ if (phase === 'main') {
         const conv = await conversationOf(claude.id)
         const evidence = [`restored ${back.id} "${back.label}"`, `the reply ${state.marker} is back`, `conversation ${conv ?? 'unknown'} (was ${state.conversation ?? 'unknown'})`]
         if (state.conversation && conv && conv !== state.conversation) throw failWith('a different conversation after Restore', evidence)
+        await labelSurvives(claude.id, state.claude.label, 'Archive and Restore', evidence)
         return { evidence }
       })
     }

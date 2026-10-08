@@ -76,8 +76,12 @@ try {
         problems.push(`${label}: its folder plans ${JSON.stringify(dir)}`)
       }
       if (home) {
-        const h = await plan(['~'], pty)
-        if (!h?.ok || h.via !== 'wsl' || h.path !== hostPathOf(home, distro, mountRoot)) problems.push(`${label}: ~ plans ${JSON.stringify(h)}`)
+        // `~/`, not a bare `~`: main takes no candidate shorter than two characters (since
+        // 1.0.7), so `~` alone was refused as "invalid" before anything was planned (the
+        // 2026-10-06 Windows run), and a terminal link is never a lone tilde anyway.
+        const h = await plan(['~/'], pty)
+        const bare = (p) => String(p ?? '').replace(/[\\/]+$/, '')
+        if (!h?.ok || h.via !== 'wsl' || bare(h.path) !== bare(hostPathOf(home, distro, mountRoot))) problems.push(`${label}: ~/ plans ${JSON.stringify(h)}`)
       }
       const file = firstFile(distro, s.workingDirectory)
       if (file) {

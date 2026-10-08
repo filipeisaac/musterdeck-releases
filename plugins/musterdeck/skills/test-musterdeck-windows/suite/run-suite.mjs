@@ -67,8 +67,14 @@ for (const check of CHECKS) {
   const r = await runOne(check)
   const lines = `${r.stdout}\n${r.stderr}`.split(/\r?\n/).map((l) => l.trimEnd()).filter(Boolean)
   const verdict = lines.find((l) => /^(PASS|FAIL|SKIP)\b/.test(l))
-  let status = verdict ? verdict.split(/\s/)[0] : r.code === 0 ? 'PASS' : 'FAIL'
-  if (status === 'PASS' && r.code !== 0) status = 'FAIL'
+  // Node 24 on Windows can abort AFTER a check has finished: `process.exit` while the CDP
+  // socket is still closing trips libuv's "!(handle->flags & UV_HANDLE_CLOSING)" in
+  // win/async.c (exit 0xC0000409). Seven checks of the 2026-10-06 run printed PASS and were
+  // recorded FAIL for it. The verdict stands (a check with none counts as exiting 0, since
+  // the abort comes only once it is done); the abort is kept as evidence.
+  const teardownAbort = r.code === 3221226505 && /UV_HANDLE_CLOSING/.test(r.stderr)
+  let status = verdict ? verdict.split(/\s/)[0] : r.code === 0 || teardownAbort ? 'PASS' : 'FAIL'
+  if (status === 'PASS' && r.code !== 0 && !teardownAbort) status = 'FAIL'
   if (status === 'FAIL') failed++
   const evidence = [(verdict ?? lines[0] ?? `exit ${r.code}`).replace(/^(PASS|FAIL|SKIP)\s+/, ''), ...lines.filter((l) => l !== verdict).slice(0, 12), `node ${r.args.slice(1).map((a) => path.basename(a) === check.script ? check.script : a).join(' ')} (exit ${r.code}, ${Math.round(r.ms / 1000)}s)`]
   record(out, { id, title, status, evidence, ms: r.ms })

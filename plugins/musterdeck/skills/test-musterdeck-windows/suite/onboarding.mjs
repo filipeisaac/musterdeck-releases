@@ -32,10 +32,11 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
+import { spawnSync } from 'node:child_process'
 import { connectToApp, portFromArgs } from './lib/cdp.mjs'
 import { outDirFromArgs, step, record, failWith } from './lib/results.mjs'
 import { click, exists, setValue, waitFor, sleep, screenshot } from './lib/ui.mjs'
-import { TRUST, CLAUDE_READY, selectPrompt, describeOptions } from './lib/claude-tui.mjs'
+import { TRUST, CLAUDE_READY, offerOnScreen, selectPrompt, describeOptions } from './lib/claude-tui.mjs'
 
 const argv = process.argv.slice(2)
 const arg = (name, dflt = null) => (argv.includes(name) ? argv[argv.indexOf(name) + 1] : dflt)
@@ -86,14 +87,43 @@ async function xtermKey(scope, key) {
 }
 /** Claude's folder trust question: move onto its Yes option, check, then Enter. Never a blind Enter. */
 async function answerTrust(scope) {
+  return answerOption(scope, 'the trust question', (sp) => sp.yes)
+}
+/** Move the cursor of the select prompt on screen onto the option `pick` names, check, Enter. */
+async function answerOption(scope, what, pick) {
   for (let i = 0; i < 8; i++) {
     const sp = selectPrompt(await xtermText(scope), 60)
-    if (!sp?.yes || !sp.selected) throw new Error(`cannot read the trust question's options${sp ? ` (${describeOptions(sp)})` : ''}`)
-    if (sp.selected.n === sp.yes.n) { await xtermType(scope, ''); return `"${sp.yes.text}"` }
-    await xtermKey(scope, sp.yes.n > sp.selected.n ? 'ArrowDown' : 'ArrowUp')
+    const want = sp && pick(sp)
+    if (!want || !sp.selected) throw new Error(`cannot read the options of ${what}${sp ? ` (${describeOptions(sp)})` : ''}`)
+    if (sp.selected.n === want.n) { await xtermType(scope, ''); return `"${want.text}"` }
+    await xtermKey(scope, want.n > sp.selected.n ? 'ArrowDown' : 'ArrowUp')
     await sleep(400)
   }
-  throw new Error('the cursor would not move onto the Yes option of the trust question')
+  throw new Error(`the cursor would not move onto the option of ${what}`)
+}
+/** Claude's own offer on screen (`OFFERS`), declined: accepting it would change the person's settings. */
+async function declineOffer(scope, text) {
+  const offer = offerOnScreen(text)
+  if (!offer) return null
+  const chose = await answerOption(scope, `the offer of ${offer.name}`, (sp) => sp.options.find((o) => offer.decline.test(o.text)))
+  return `declined Claude's offer of ${offer.name} with ${chose}`
+}
+
+/**
+ * What this computer's Claude itself says about its sign-in (`claude auth status`, metadata
+ * only), with the identity a parent Claude session stamps into the environment removed, as
+ * MusterDeck removes it for everything it starts. Null when it cannot be asked.
+ */
+function claudeAuthStatus(claudePath) {
+  const env = { ...process.env }
+  for (const k of Object.keys(env)) if (/^(CLAUDE_CODE_|CLAUDECODE$|ANTHROPIC_API_KEY$|ANTHROPIC_BASE_URL$)/.test(k)) delete env[k]
+  try {
+    const r = spawnSync(claudePath, ['auth', 'status'], { env, encoding: 'utf8', timeout: 30_000, windowsHide: true, shell: /\.(cmd|bat)$/i.test(claudePath) })
+    const j = JSON.parse(String(r.stdout ?? '').trim())
+    return { loggedIn: j.loggedIn === true, email: j.email ?? null, orgName: j.orgName ?? null }
+  } catch {
+    return null
+  }
 }
 
 /** One check row, as `✓ <what it says>` or `! <what it says>`. */
@@ -136,6 +166,8 @@ try {
     await waitFor(async () => {
       const t = await xtermText()
       const tail = t.split(/\r?\n/).slice(-40).join('\n')
+      const declined = await declineOffer(null, t)
+      if (declined) { evidence.push(declined); return null }
       if (!trusted && TRUST.test(tail) && !CLAUDE_READY.test(tail)) { evidence.push(`trust: ${await answerTrust()}`); trusted = true; return null }
       return CLAUDE_READY.test(t)
     }, { timeoutMs: 120_000, intervalMs: 1000, what: "Claude's prompt in the setup terminal" }).catch(async (e) => {
@@ -179,7 +211,7 @@ try {
     if (await has('onboarding-fix-native-sign-in')) {
       evidence.push('not signed in: Sign in now')
       await click(page, { css: '[data-testid="onboarding-fix-native-sign-in-run"]' })
-      await signInVia('onboarding-fix-native-sign-in-terminal', 'on the Find Claude page (then type /exit)', async () => !(await has('onboarding-fix-native-sign-in')))
+      await signInVia('onboarding-fix-native-sign-in-terminal', 'on the Find Claude page (since 1.0.154 it runs claude auth login and closes by itself)', async () => !(await has('onboarding-fix-native-sign-in')))
     }
     // Each row is its title on a line of its own, then its detail (the page's subtitle also
     // says "installed and you're signed in", so a row is matched as a whole line).
@@ -190,7 +222,15 @@ try {
     const signedIn = row("You're signed in")
     evidence.push(installed ?? 'no "Claude Code is installed" row', version ?? 'no version row', signedIn ?? 'no "signed in" row')
     evidence.push(`screen: ${await shot('find-claude')}`)
-    const ok = !!installed && !!version && /Read just now with claude --version/.test(version) && !!signedIn
+    // "Signed in" must be Claude's own answer, not a config file's (2026-10-06: the page said
+    // signed in from .claude.json while `claude auth status` said loggedIn false, and every
+    // Windows Claude session then said "Not logged in").
+    const claudePath = /Found at (.+?)\.?$/.exec(installed ?? '')?.[1]?.trim()
+    const truth = claudePath ? claudeAuthStatus(claudePath) : null
+    if (truth) evidence.push(`claude auth status: loggedIn=${truth.loggedIn}${truth.email ? ` as ${truth.email}${truth.orgName ? ` (${truth.orgName})` : ''}` : ''}`)
+    const lied = !!signedIn && truth?.loggedIn === false
+    if (lied) evidence.push('the page says signed in, but Claude says nobody is signed in')
+    const ok = !!installed && !!version && /Read just now with claude --version/.test(version) && !!signedIn && !lied
     return { status: ok ? 'PASS' : 'FAIL', evidence }
   })
 

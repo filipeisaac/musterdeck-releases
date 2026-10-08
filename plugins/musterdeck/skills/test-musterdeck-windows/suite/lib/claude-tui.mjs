@@ -16,6 +16,23 @@ export const TRUST = /Do you trust the files|trust this folder|Yes, proceed|Is t
  */
 export const CLAUDE_READY = /\? for shortcuts|bypass permissions|accept edits|plan mode on|auto mode on|Try "|─{20,}[\s\S]{0,8}[>❯]/
 
+/**
+ * Claude's own offers that can stand in front of its prompt, and the option that declines
+ * each. They are never the suite's to accept: each changes the person's own Claude settings.
+ * Claude Code 2.1.292 asks "Try the new fullscreen renderer?" with "Yes, try it" selected, the
+ * ready wait did not know it, and the Enter of the next prompt typed accepted it: the person's
+ * real `~/.claude/settings.json` in Ubuntu gained `"tui": "fullscreen"` (2026-10-06 run).
+ */
+export const OFFERS = [
+  { name: 'the fullscreen renderer', question: /Try the new fullscreen renderer\?/i, decline: /^Not now\b/i },
+]
+
+/** The offer at the bottom of the screen, or null. Looks at the last lines only. */
+export function offerOnScreen(text, tailLines = 30) {
+  const tail = String(text ?? '').split(/\r?\n/).slice(-tailLines).join('\n')
+  return OFFERS.find((o) => o.question.test(tail)) ?? null
+}
+
 /** A line of the screen without a box's side bars and the padding around them. */
 const unbox = (line) => line.replace(/^[\s│|]*/, '').replace(/[\s│|]*$/, '')
 const CURSOR = /^(❯|›|>)\s+(?=\S)/
