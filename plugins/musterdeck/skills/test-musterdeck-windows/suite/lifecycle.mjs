@@ -10,7 +10,8 @@
  *
  * Phase `main` (the default):
  *   shell      a Shell-only session from the New Session dialog: its record, host and prompt
- *   colour     TERM and COLORTERM in it, then truecolour blocks, read back from a screenshot of
+ *   colour     TERM and COLORTERM in it, none of the variables a Claude Code host sets for its own
+ *              shells (NO_COLOR above all), then truecolour blocks, read back from a screenshot of
  *              the window (pixels counted near the exact colours sent); the PNG is kept
  *   drop       what dropping `--drop` on it would type (the drop handler, dry run)
  *   rename     Rename from the sidebar menu: the label changes
@@ -347,6 +348,18 @@ async function colourCheck(id) {
   const line = t.match(/^TERM=\S* COLORTERM=\S*\s*$/m)[0].trim()
   evidence.push(`terminal says: ${line}`)
   const termOk = /TERM=xterm-256color/.test(line) && /COLORTERM=truecolor/.test(line)
+  // What the Claude Code session that started the app set for its OWN tool shells must not reach
+  // a session: NO_COLOR=1 drew every Windows Claude session white while the blocks below still
+  // passed (raw escapes ignore it), DISABLE_AUTOUPDATER froze its Claude, GIT_EDITOR=true would
+  // commit with no editor (1.0.162; the app drops them at start from 1.0.164).
+  const hostVars = ['NO_COLOR', 'GIT_EDITOR', 'DISABLE_AUTOUPDATER', 'CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT']
+  const hostLine = powershell
+    ? `echo ("HOSTVARS=[" + ((@(${hostVars.map((v) => `'${v}'`).join(',')}) | Where-Object { Test-Path "env:$_" }) -join ' ') + "]")`
+    : `echo "HOSTVARS=[$(for v in ${hostVars.join(' ')}; do printenv "$v" >/dev/null && printf '%s ' "$v"; done)]"`
+  await typeInTerminal(page, id, hostLine)
+  const ht = await waitForTerminal(page, id, /^HOSTVARS=\[[^\]]*\]\s*$/m, { timeoutMs: 20_000, what: 'the HOSTVARS line' })
+  const inherited = ht.match(/^HOSTVARS=\[([^\]]*)\]\s*$/m)[1].trim()
+  evidence.push(`a Claude Code host's own shell variables in the session: ${inherited || 'none'}`)
   const orange = [255, 100, 0], blue = [0, 120, 255]
   const block = (rgb) => powershell
     ? `$e=[char]27; 1..3 | % { "$e[48;2;${rgb.join(';')}m" + (' ' * 60) + "$e[0m" }`
@@ -364,8 +377,12 @@ async function colourCheck(id) {
   const o = countNear(img, orange, tolerance), b = countNear(img, blue, tolerance)
   evidence.push(`screenshot ${path.basename(file)} ${img.width}x${img.height}, tolerance ${tolerance}: orange ${orange.join(',')} ${o.count} px (nearest ${o.nearest?.join(',')}), blue ${blue.join(',')} ${b.count} px (nearest ${b.nearest?.join(',')})`)
   const drawn = o.count >= 500 && b.count >= 500
-  if (!termOk || !drawn) {
-    throw failWith(!termOk ? `expected TERM=xterm-256color COLORTERM=truecolor, got "${line}"` : 'the truecolour blocks are not in the screenshot at their exact colours', evidence)
+  if (!termOk || !drawn || inherited) {
+    throw failWith(
+      !termOk ? `expected TERM=xterm-256color COLORTERM=truecolor, got "${line}"`
+        : inherited ? `the session inherited what the Claude Code session that started the app set for its own shells (${inherited}): Claude draws without colour under NO_COLOR`
+          : 'the truecolour blocks are not in the screenshot at their exact colours',
+      evidence)
   }
   return { evidence }
 }
