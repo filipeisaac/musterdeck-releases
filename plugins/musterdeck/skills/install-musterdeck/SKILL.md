@@ -213,6 +213,15 @@ shortcuts. For an unattended install:
 The installer is **not signed**, so SmartScreen may say "unrecognised publisher". The user
 clicks **More info → Run anyway**. Say this before they hit it rather than after.
 
+**Smart App Control** (Windows Security > App & browser control; on by default on many new
+Windows 11 PCs) judges unsigned files by reputation, and MusterDeck's native modules are
+unsigned. A new release's database module can be one it has not seen yet, and Windows may then
+say that **parts of the app were blocked**. 1.0.195 installed and ran with it on, on a fresh
+PC. If it does happen: what was blocked is in Event Viewer > Applications and Services Logs >
+Microsoft > Windows > CodeIntegrity > Operational (event 3077), and it usually clears once
+Windows has judged the file. Never suggest turning Smart App Control off: it cannot be turned
+back on without reinstalling Windows.
+
 Installing over an existing copy upgrades in place and keeps the data directory.
 
 **Launch it through Explorer**, not as a child of this shell:
