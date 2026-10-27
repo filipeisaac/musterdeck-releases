@@ -96,7 +96,7 @@ live in the data directory, not in the app bundle.
 | OS | Data directory (kept across upgrades) |
 | --- | --- |
 | macOS | `~/Library/Application Support/Claude Conductor` |
-| Windows | `%LOCALAPPDATA%\Claude Command Center` |
+| Windows | `%LOCALAPPDATA%\MusterDeck` |
 
 Those names are two products old and are deliberately not changed: renaming them orphans
 the user's data.

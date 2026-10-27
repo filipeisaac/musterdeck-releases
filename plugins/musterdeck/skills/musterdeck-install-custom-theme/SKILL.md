@@ -60,7 +60,7 @@ The data directory keeps the app's old name on purpose (moving it would orphan d
 | OS | Data directory |
 | --- | --- |
 | macOS | `~/Library/Application Support/Claude Conductor` |
-| Windows | `%LOCALAPPDATA%\Claude Command Center` |
+| Windows | `%LOCALAPPDATA%\MusterDeck` |
 | Linux | `~/.claude-conductor/data` |
 
 It can be moved by a `DataDirectory` override (the Windows registry, or the app's setup);
