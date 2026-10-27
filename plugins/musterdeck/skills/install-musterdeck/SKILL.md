@@ -1,12 +1,12 @@
 ---
 name: install-musterdeck
-description: Download and install the latest MusterDeck release for this machine - the macOS .dmg or the Windows .exe - from the public releases repository, verify it, put it in place and launch it, then offer to add the custom Crew themes. Also installs a named preview build when given its tag (e.g. /install-musterdeck v1.0.39-wsl-preview), and works from Claude Code running inside WSL on Windows. Use when asked to install, reinstall, update or upgrade MusterDeck, to install a preview or test build, or to get MusterDeck onto a new machine.
+description: Download and install the latest MusterDeck release for this machine - the macOS .dmg or the Windows .exe - from the public releases repository, verify it, put it in place and launch it, then offer Remote access (one MusterDeck driving another's sessions, with help installing and setting up Tailscale) and the custom Crew themes. Also installs a named preview build when given its tag (e.g. /install-musterdeck v1.0.39-wsl-preview), and works from Claude Code running inside WSL on Windows. Use when asked to install, reinstall, update or upgrade MusterDeck, to install a preview or test build, or to get MusterDeck onto a new machine.
 ---
 
 # Installing MusterDeck
 
 Works out which OS it is on, fetches the newest published release, checks it, installs it,
-and offers the custom Crew themes afterwards.
+and offers Remote access and the custom Crew themes afterwards.
 
 **Do only the section for the OS you are on.** `uname -s` gives `Darwin` on macOS; on
 Windows `$env:OS` is `Windows_NT`. **Inside WSL** (`uname -s` is `Linux` and
@@ -263,7 +263,7 @@ and the hash and let them run the installer from Windows.
 
 Let the app start once before doing anything else. On boot it installs the skills it ships
 with into `~/.claude/skills/`, which is where the theme skill in the next step comes from,
-so **step 5 does not work until the app has run at least once**, and it creates the data
+so **step 6 does not work until the app has run at least once**, and it creates the data
 directory if this is a first install.
 
 (That is the right way round: the theme skill needs a data directory to write into and a
@@ -329,7 +329,73 @@ pops up:
 
 Help with any of these if asked; otherwise leave setup to them.
 
-## 5. Offer the custom Crew themes
+## 5. Offer Remote access, and Tailscale
+
+Since 1.0.340 one MusterDeck can drive another's sessions: a desk machine's sessions show in
+the laptop's sidebar and deck, typing there runs on the desk, and right-click actions happen
+there. It needs MusterDeck 1.0.340 or later on BOTH machines (the same version is best), and
+it is off until the person turns it on. Nothing listens beyond the machine until then, and
+only machines paired by a six-digit code get in.
+
+**Ask** with AskUserQuestion: *Do you want to use Remote access, driving this machine's
+sessions from another computer (or another computer's from this one)?*
+
+| Option | What it means |
+|---|---|
+| **Yes, across networks with Tailscale** (Recommended when the machines are not always on one network) | Tailscale below, then the pairing |
+| **Yes, on this network only** | both machines on the same Wi-Fi or LAN; skip to *Pair the machines* |
+| **Not now** | say it is in Configs > Integrations > Remote access whenever they want it, and go on to step 6 |
+
+### Tailscale: install it, sign in, check it
+
+Tailscale puts the person's machines on one private network wherever they are. MusterDeck
+uses only the machine's own Tailscale address. **It does not need** MagicDNS or "Use
+Tailscale DNS" (leave them off if a VPN conflicts with them), HTTPS certificates, or
+`tailscale serve`: do not change any of those for MusterDeck. Do this on **each** machine.
+
+1. **Already there?**
+   ```bash
+   # macOS
+   TS=/Applications/Tailscale.app/Contents/MacOS/Tailscale; [ -x "$TS" ] || TS=$(command -v tailscale)
+   "$TS" version && "$TS" status
+   ```
+   ```powershell
+   # Windows (from WSL too: run it through powershell.exe; Tailscale goes on WINDOWS, not in Ubuntu)
+   & "$env:ProgramFiles\Tailscale\tailscale.exe" version; & "$env:ProgramFiles\Tailscale\tailscale.exe" status
+   ```
+   Running and signed in: skip to step 4.
+2. **Install**, asking first:
+   - **Windows**: `winget install --id Tailscale.Tailscale -e`. The installer asks for
+     administrator rights; the person accepts it.
+   - **macOS**: the person installs it, because macOS asks them to approve its network
+     extension: from the Mac App Store, or the standalone download at
+     https://tailscale.com/download/mac. Open the page for them (`open <url>`) and wait. Then
+     open Tailscale and allow its VPN configuration when macOS asks.
+3. **Sign in**: open Tailscale (menu bar on macOS, the tray on Windows) and Log in, or run
+   `tailscale up` (the CLI path from step 1), which prints a link to open. **Every machine
+   signs in to the same tailnet** (the same account, or one invited to it). Leave the sign-in
+   to the person.
+4. **Check**: `tailscale status` lists both machines, and `tailscale ip -4` gives this one's
+   `100.x.y.z` address. The other machine must show in the list before pairing; if it does
+   not, it is signed in to another tailnet.
+
+### Pair the machines
+
+Leave the clicking to the person; say it in these words:
+
+1. On the machine to be **driven**: Configs > Integrations > Remote access, turn it on, then
+   **Make discoverable** (ten minutes). With Tailscale, its tailnet address shows there.
+2. On the machine that **drives**: same page, **Find machines**. It lists the other one on
+   this network and over Tailscale; otherwise type its address.
+3. **Pair**: both screens show the same six digits; confirm on the driven machine.
+4. Its sessions appear in their own section of the sidebar. **Revoke** on the driven machine
+   cuts a machine off at once.
+
+If the OS asks: on macOS, allow MusterDeck to find devices on the local network and to
+accept incoming connections; on Windows, allow MusterDeck through the firewall on private
+networks. Without that, Find comes back empty and pairing times out.
+
+## 6. Offer the custom Crew themes
 
 MusterDeck ships with two Crew themes, Harbour and the Samurai Village. Others, the Jedi
 Enclave and the Galley Kitchen, are distributed separately because they carry someone
@@ -349,8 +415,9 @@ Two things worth saying as you offer:
 
 If the user declines, say the offer stands whenever they want it, and finish.
 
-## 6. Say what happened
+## 7. Say what happened
 
-State the version installed, where it went, and whether themes were added. If anything was
+State the version installed, where it went, whether Remote access was set up (Tailscale
+installed and signed in on which machines, paired or not), and whether themes were added. If anything was
 skipped (an Intel Mac, a missing asset for this platform, a declined theme step), say that
 too rather than reporting a clean run.
