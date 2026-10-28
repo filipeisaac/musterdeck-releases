@@ -344,7 +344,7 @@ sessions from another computer (or another computer's from this one)?*
 |---|---|
 | **Yes, across networks with Tailscale** (Recommended when the machines are not always on one network) | Tailscale below, then the pairing |
 | **Yes, on this network only** | both machines on the same Wi-Fi or LAN; skip to *Pair the machines* |
-| **Not now** | say it is in Configs > Integrations > Remote access whenever they want it, and go on to step 6 |
+| **Not now** | say it is in Configs > Remote access whenever they want it, and go on to step 6 |
 
 ### Tailscale: install it, sign in, check it
 
@@ -383,7 +383,7 @@ Tailscale DNS" (leave them off if a VPN conflicts with them), HTTPS certificates
 
 Leave the clicking to the person; say it in these words:
 
-1. On the machine to be **driven**: Configs > Integrations > Remote access, turn it on, then
+1. On the machine to be **driven**: Configs > Remote access, turn it on, then
    **Make discoverable** (ten minutes). With Tailscale, its tailnet address shows there.
 2. On the machine that **drives**: same page, **Find machines**. It lists the other one on
    this network and over Tailscale; otherwise type its address.
