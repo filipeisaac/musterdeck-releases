@@ -123,33 +123,56 @@ The two must match. If they do not, delete the file and download again; never in
 
 ## 3a. macOS: install
 
-**Quit a running copy first.** Replacing the bundle under a live process is how you get a
-half-updated app.
+**Never quit or kill MusterDeck yourself.** Quitting it asks whether to save the open sessions,
+and a forced quit skips that question, so they would not come back. And this skill may be
+running INSIDE a MusterDeck session (`CLAUDE_MULTI_SESSION_ID` is set): quitting MusterDeck
+ends this very session, and an install that waits for the next command never happens.
+
+So the install runs on its own, in the background: it waits until MusterDeck has quit, puts the
+new app in place, and opens it. Start it with the DMG's absolute path:
 
 ```bash
-osascript -e 'tell application "MusterDeck" to quit' 2>/dev/null; sleep 3
-pkill -f "/Applications/MusterDeck.app" 2>/dev/null
+DMG="$PWD/MusterDeck-<version>-mac.dmg"
+LOG="$HOME/Library/Logs/musterdeck-install.log"
+cat > "$TMPDIR/musterdeck-install.sh" <<'EOF'
+DMG="$1"; APP="${2:-/Applications/MusterDeck.app}"; LAUNCH="${3:-open}"
+echo "waiting for MusterDeck to quit"
+i=0; while ps -axo comm= | grep -Fqx "$APP/Contents/MacOS/MusterDeck"; do i=$((i+1)); [ $i -gt 1800 ] && { echo "MusterDeck still running after 30 minutes; nothing installed"; exit 1; }; sleep 1; done
+MNT=$(hdiutil attach "$DMG" -nobrowse -readonly -plist | grep -A1 '<key>mount-point</key>' | tail -1 | sed 's/.*<string>\(.*\)<\/string>.*/\1/')
+[ -d "$MNT/MusterDeck.app" ] || { echo "could not open $DMG; nothing installed"; exit 1; }
+rm -rf "$APP.new" "$APP.old"
+ditto "$MNT/MusterDeck.app" "$APP.new" || { rm -rf "$APP.new"; echo "copy failed; opening the DMG to drag by hand"; open "$MNT"; exit 1; }
+[ -d "$APP" ] && { mv "$APP" "$APP.old" || { rm -rf "$APP.new"; echo "could not move the old app aside; opening the DMG"; open "$MNT"; exit 1; }; }
+mv "$APP.new" "$APP" || { mv "$APP.old" "$APP"; echo "could not put the new app in place; opening the DMG"; open "$MNT"; exit 1; }
+rm -rf "$APP.old"
+xattr -dr com.apple.quarantine "$APP" 2>/dev/null
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP" 2>/dev/null
+hdiutil detach "$MNT" -quiet || hdiutil detach "$MNT" -force -quiet
+echo "installed $(defaults read "$APP/Contents/Info.plist" CFBundleShortVersionString)"
+[ "$LAUNCH" = open ] && open "$APP"
+exit 0
+EOF
+nohup /bin/sh "$TMPDIR/musterdeck-install.sh" "$DMG" > "$LOG" 2>&1 &
 ```
 
-Mount, copy with `ditto`, unmount:
+Then, if MusterDeck is running, **tell the user to quit it themselves: Cmd+Q, then Save
+Sessions.** It reopens on the new version by itself within a few seconds, with the sessions
+saved. When this skill runs inside MusterDeck, say first that this session closes with it and
+the install carries on alone; once MusterDeck is back they can ask in any session to check it.
+If MusterDeck was not running, the install starts at once.
 
-```bash
-hdiutil attach "MusterDeck-<version>-mac.dmg" -nobrowse -readonly
-rm -rf "/Applications/MusterDeck.app"
-ditto "/Volumes/MusterDeck <version>-arm64/MusterDeck.app" "/Applications/MusterDeck.app"
-hdiutil detach "/Volumes/MusterDeck <version>-arm64" -quiet
-```
+Check it in `$LOG`: the last line is `installed <version>`. Anything else says what happened;
+when the copy could not be made it opens the DMG in Finder, for a drag into Applications by hand.
 
-Use `ditto`, not `cp -R`: it preserves the bundle faithfully, including symlinks inside the
-framework, which a plain copy can mangle.
+Why it is written this way: it waits on the app's own executable path, read with `ps` (`pgrep -f`
+missed the running app's main process on macOS 27); it copies beside the old app and swaps them
+by two renames, putting the old one back if the second fails, so there is never a moment with no
+MusterDeck in Applications. Use `ditto`, not `cp -R`: it preserves the bundle faithfully,
+including symlinks inside the framework, which a plain copy can mangle.
 
-### Clear the quarantine flag
+### The quarantine flag
 
-```bash
-xattr -dr com.apple.quarantine "/Applications/MusterDeck.app"
-```
-
-The build is **not signed with an Apple Developer ID**, so Gatekeeper would otherwise
+The script clears it (`xattr -dr com.apple.quarantine`). The build is **not signed with an Apple Developer ID**, so Gatekeeper would otherwise
 refuse it as "from an unidentified developer" and the user would have to right-click → Open.
 Removing the quarantine attribute that the download added avoids that entirely.
 
@@ -169,11 +192,7 @@ nowhere**. That is a broken installer, not something to fix here; report it.
 
 ### Launch
 
-```bash
-open "/Applications/MusterDeck.app"
-```
-
-If macOS opens the *old* version, LaunchServices has cached the replaced bundle. Re-register
+The script opens it. If macOS opens the *old* version, LaunchServices has cached the replaced bundle. Re-register
 it and try again:
 
 ```bash
@@ -196,10 +215,12 @@ touches the keychain, so it cannot hang on this prompt.
 
 ## 3b. Windows: install
 
-**Close a running copy first**, then run the installer:
+**A running copy is closed by the user, never killed**: ask them to close MusterDeck and
+choose Save Sessions, or the open sessions do not come back. If this skill runs inside a
+MusterDeck session (`CLAUDE_MULTI_SESSION_ID` is set), closing MusterDeck ends this session
+too: ask them to run the install from Claude Code in a terminal instead. Then run the installer:
 
 ```powershell
-Get-Process MusterDeck -ErrorAction SilentlyContinue | Stop-Process
 .\MusterDeck-<version>.exe
 ```
 

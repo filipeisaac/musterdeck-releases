@@ -1,6 +1,6 @@
 {
   "name": "musterdeck",
-  "version": "1.0.25",
+  "version": "1.0.26",
   "description": "Install and maintain MusterDeck, and author Crew themes for it",
   "author": {
     "name": "MusterDeck"
@@ -12,5 +12,5 @@
     "claude-code",
     "sessions"
   ],
-  "contentHash": "f760b425c00ff2d8a3d25051501dd032753aee8a53020023b7bea7a0833a5930"
+  "contentHash": "7972a9708bc38fd1ef7a97412409c372d82f4a794cb134c310b3fb854e1d14e7"
 }
