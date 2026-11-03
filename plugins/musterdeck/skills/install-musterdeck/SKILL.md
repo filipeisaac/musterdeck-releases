@@ -178,7 +178,7 @@ Removing the quarantine attribute that the download added avoids that entirely.
 
 Use `-dr com.apple.quarantine`, not `xattr -cr`. `-cr` strips *every* extended attribute,
 which is only wanted when something is about to be re-signed. Nothing is re-signed here:
-the app inside the DMG already carries its own ad-hoc signature, and that signature is what
+the app inside the DMG already carries its own signature, and that signature is what
 makes notifications work: macOS keys an app in Notification Center by its code-signing
 identity. Confirm it survived the copy:
 
@@ -204,11 +204,12 @@ On first launch macOS may ask for access to Documents, Desktop or Downloads. The
 it to read the project folders sessions run in; the request is expected, and the first
 launch can sit waiting on that dialog, so tell the user to look for it.
 
-After an UPDATE (not a first install), macOS may also ask once whether MusterDeck may use
-"MusterDeck Safe Storage" in the keychain. Each release carries a new ad-hoc signature, so
-macOS asks again for the item the previous build created (it holds saved SSH passwords and
-encrypted notes). Tell the user to click **Always Allow**; Deny only means MusterDeck asks
-for those passwords again. Since 1.0.120 a session that signs in with an SSH key never
+Updating from 1.0.422 or older, macOS may ask once more for what it had allowed (folders,
+Screen Recording, Accessibility, and whether MusterDeck may use "MusterDeck Safe Storage" in
+the keychain). Those builds were signed ad hoc, a new identity every release; since 1.0.423
+every release is signed by the same MusterDeck certificate, so what is allowed once stays
+allowed across updates. Tell the user to click **Always Allow**; Deny only means MusterDeck
+asks for those passwords again. Since 1.0.120 a session that signs in with an SSH key never
 touches the keychain, so it cannot hang on this prompt.
 
 ---
