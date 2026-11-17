@@ -1,6 +1,6 @@
 {
   "name": "musterdeck",
-  "version": "1.0.29",
+  "version": "1.0.30",
   "description": "Install and maintain MusterDeck, use its Artifact Center, and author Crew themes for it",
   "author": {
     "name": "MusterDeck"
@@ -12,5 +12,5 @@
     "claude-code",
     "sessions"
   ],
-  "contentHash": "d61451a4828917027a233a53aefaef19e3be052dadaab96f4bd70d97936520c4"
+  "contentHash": "0a6346208a2758617fdf0531d6ea037e26d520b5fa14d675db58da52a2928c50"
 }

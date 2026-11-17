@@ -45,12 +45,13 @@ When both are available:
 
 ## Publishing a page
 
-1. **Write one self-contained file**: a complete HTML page (`<!doctype html>`, a `<title>`, the
-   styles and scripts inline), or a Markdown document. At most 10 MB.
+1. **Write the page**: a complete HTML page (`<!doctype html>`, a `<title>`), or a Markdown
+   document. At most 10 MB. Styles and scripts go inline, or in files beside it (step 3).
 2. **It runs cut off from everything.** Its scripts run, but it cannot make any network request
    (fetch, XHR, WebSocket, a form, a beacon), cannot reach the user's computer, and has no storage
    or cookies. So:
-   - put the data in the page itself (a `<script>` with a JSON literal), never fetch it;
+   - put the data in the page itself (a `<script>` with a JSON literal) or in a file beside it
+     loaded with `<script src="data.js">`; never `fetch()` it, even its own files;
    - load a library only from `https://cdnjs.cloudflare.com`, `https://cdn.jsdelivr.net` or
      `https://unpkg.com`, with an exact version (`chart.js@4.4.1`, never `@latest`); fonts from
      Google Fonts; images as `data:` URLs or `https:` addresses;
@@ -58,7 +59,12 @@ When both are available:
      visible text if the user needs them;
    - make it work in a narrow window (the phone) as well as a wide one, in light and dark.
 3. **Call `artifact_publish`** with `title` (short), `html` or `markdown` (one of them), and a
-   one-sentence `description` (it is searched, and shown under the title).
+   one-sentence `description` (it is searched, and shown under the title). Optional:
+   - `files`: images, stylesheets, scripts and data beside the page, each `{ path, text }` or
+     `{ path, base64 }` (an image, a font, a PDF), loaded by the relative path the page uses
+     (`<img src="img/chart.png">`). Up to 255 files, 15 MB each, 64 MB in all. Prefer inline for
+     a small page; files are for images and for data too big to read comfortably in the page;
+   - `label`: a short name for this version, such as "Draft to CS".
 4. **Give the user the link it returns**, `musterdeck://artifact/<id>`: clicking it in the
    terminal opens the page in its own window. Say where else it is: Tools, Artifacts in
    MusterDeck, and the Artifacts tab on their phone.
@@ -68,11 +74,16 @@ When both are available:
 1. **Find it**: `artifact_list` with words from its name or content (`query`), or with no query
    for the most recent. Each row gives the id, the title, the latest version and the session
    that made it.
-2. **Read it**: `artifact_read` with the `id` (and a `version` for an older one). Revise what is
-   there; do not rewrite from memory, another session may have changed it since.
-3. **Publish the revision with the same `id`**: it becomes the next version, and every earlier
-   version is kept. Leaving out the `id` makes a separate artifact, which is right only when the
-   user wants a new page.
+2. **Read it**: `artifact_read` with the `id` (and a `version` for an older one). It lists the
+   files beside the page; read one with `path`. Revise what is there; do not rewrite from memory,
+   another session may have changed it since.
+3. **Publish the revision with the same `id` and `if_version`** set to the version you read: it
+   becomes the next version, and every earlier version is kept. If another session published in
+   between, it is refused and names the live version: read that one, make your change on it, and
+   publish again with its number. Never drop `if_version` to get past the refusal. Leaving out the
+   `id` makes a separate artifact, which is right only when the user wants a new page.
+4. **Files carry over**: the new version keeps the last one's files. Give a file again to change
+   it, and name one in `remove_files` to leave it out.
 
 An unknown `id` is refused, never quietly made into a new artifact: list again and use the id it
 shows.
