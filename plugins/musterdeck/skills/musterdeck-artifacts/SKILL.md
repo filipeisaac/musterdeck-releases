@@ -1,13 +1,13 @@
 ---
 name: musterdeck-artifacts
-description: Keep, find and revise pages (HTML or Markdown) in MusterDeck's own Artifact Center, through the conductor tools artifact_publish, artifact_list and artifact_read, so the user sees them in MusterDeck (Tools, Artifacts), on their phone, and from every session on any account, Claude or Codex. Use when the user asks for a page, dashboard, report, plan view, chart page, mock-up or any visual write-up and the session runs in MusterDeck; when they say "publish it to MusterDeck", "keep it as an artifact", "put it in my artifacts", "open it on my phone"; or when they ask to find, open, update or build on an artifact made earlier, by any session or account.
+description: Keep, find and revise pages (HTML or Markdown) in MusterDeck's own Artifact Center, through the conductor tools artifact_publish, artifact_list and artifact_read, so the user sees them in MusterDeck (Artifacts, on the rail), on their phone, and from every session on any account, Claude or Codex. Use when the user asks for a page, dashboard, report, plan view, chart page, mock-up or any visual write-up and the session runs in MusterDeck; when they say "publish it to MusterDeck", "keep it as an artifact", "put it in my artifacts", "open it on my phone"; or when they ask to find, open, update or build on an artifact made earlier, by any session or account.
 ---
 
 # MusterDeck's artifacts
 
 MusterDeck keeps the pages sessions make in its own Artifact Center, on the user's computer. A
 page kept there belongs to no Claude or Codex account: the user opens it in MusterDeck
-(Tools, Artifacts, or a window of its own), on the MusterDeck phone app, and any other session,
+(Artifacts on the rail, or a window of its own), on the MusterDeck phone app, and any other session,
 on any account or provider, can find it and add a new version. claude.ai artifacts, by contrast,
 are private to the Claude account that published them.
 
@@ -66,8 +66,8 @@ When both are available:
      a small page; files are for images and for data too big to read comfortably in the page;
    - `label`: a short name for this version, such as "Draft to CS".
 4. **Give the user the link it returns**, `musterdeck://artifact/<id>`: clicking it in the
-   terminal opens the page in its own window. Say where else it is: Tools, Artifacts in
-   MusterDeck, and the Artifacts tab on their phone.
+   terminal opens the page in its own window. Say where else it is: Artifacts on
+   MusterDeck's rail, and the Artifacts tab on their phone.
 
 ## Revising one, or building on someone else's
 
